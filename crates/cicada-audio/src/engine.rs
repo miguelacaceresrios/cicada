@@ -10,9 +10,8 @@ use crate::fx::{self, CHANNELS, Delay, Frame, Limiter, Reverb, SvfCoeffs, TrackF
 use crate::voice::{Kind, Voice};
 
 /// Cuánto se empuja la mezcla contra el limitador. El hardcore vive alto, y
-/// el limitador con escucha previa aguanta ese empuje sin chasquear. El
-/// ajuste `master` de la pieza multiplica este valor.
-const MASTER: f32 = 1.25;
+/// el limitador con escucha previa aguanta ese empuje sin chasquear.
+const DRIVE: f32 = 1.25;
 /// Tiempo del delay en ciclos. Tres dieciseisavos caen a contratiempo del
 /// pulso, que es lo que hace que el eco empuje en vez de emborronar.
 const DELAY_CYCLES: f64 = 3.0 / 16.0;
@@ -57,6 +56,9 @@ pub struct Engine {
     uses_delay: bool,
     uses_reverb: bool,
     limiter: Limiter,
+    /// Nivel de salida, después del limitador. Aplicarlo antes no serviría:
+    /// el limitador recupera lo que se le quite y el archivo sale al mismo
+    /// nivel, solo que menos apretado.
     master: f32,
     pos: u64,
     end: u64,
@@ -140,7 +142,7 @@ impl Engine {
             uses_delay,
             uses_reverb,
             limiter: Limiter::new(sr),
-            master: MASTER * program.master,
+            master: program.master,
             pos: 0,
             end: (program.length() as f64 * samples_per_cycle).round() as u64,
             sample_rate,
@@ -205,10 +207,8 @@ impl Engine {
             if self.uses_reverb {
                 mixed = fx::mix(mixed, self.reverb.run(to_reverb), REVERB_LEVEL);
             }
-            let out_frame = self
-                .limiter
-                .run([mixed[0] * self.master, mixed[1] * self.master]);
-            *frame = out_frame;
+            let limited = self.limiter.run([mixed[0] * DRIVE, mixed[1] * DRIVE]);
+            *frame = [limited[0] * self.master, limited[1] * self.master];
             self.pos += 1;
         }
         self.active.retain(|(_, v)| !v.is_done());

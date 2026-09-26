@@ -170,17 +170,25 @@ length 4
 }
 
 #[test]
-fn master_setting_changes_the_level() {
-    let normal = render_src(
+fn master_scales_the_output_predictably() {
+    // `master` va después del limitador a propósito: puesto antes, el
+    // limitador recupera lo que se le quite y el archivo sale igual de alto,
+    // solo que menos apretado. Bajarlo a la mitad da -6 dB justos.
+    let entero = render_src(
         "kick x*4
+a = synth saw
+a C2*4
 length 2
 ",
     );
-    let bajo = render_src(
-        "master 0.4
+    let mitad = render_src(
+        "master 0.5
 kick x*4
+a = synth saw
+a C2*4
 length 2
 ",
     );
-    assert!(rms(&bajo) < rms(&normal) * 0.75);
+    let ratio = rms(&mitad) / rms(&entero);
+    assert!((ratio - 0.5).abs() < 0.01, "salió {ratio}, se esperaba 0.5");
 }

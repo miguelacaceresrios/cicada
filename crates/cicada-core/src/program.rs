@@ -14,8 +14,8 @@ pub struct Program {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub bpm: f64,
-    /// Volumen general de la pieza, antes del limitador. Subirlo la aprieta
-    /// más contra el techo; bajarlo deja respirar la dinámica.
+    /// Nivel de salida de la pieza, de 0 a 1. Se aplica después del
+    /// limitador, así que baja el archivo entero de forma predecible.
     pub master: f32,
     /// Beats por ciclo.
     pub beats: u32,

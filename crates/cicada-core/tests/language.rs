@@ -406,7 +406,7 @@ kick x..."
             "master 5
 kick x..."
         ),
-        ["`master` debe ser un volumen entre 0 y 2"]
+        ["`master` debe ser un nivel entre 0 y 1"]
     );
 
     // Cambiar el volumen sí altera el audio: hay que renderizar de nuevo.

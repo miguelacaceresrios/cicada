@@ -52,11 +52,15 @@ declararlo.
 | `beats` | beats por ciclo, entero de 1 a 32 | 4 |
 | `seed` | entero ≥ 0 | 0 |
 | `length` | duración en ciclos si no hay secciones | 8 |
-| `master` | volumen general, entre 0 y 2 | 1 |
+| `master` | nivel de salida, entre 0 y 1 | 1 |
 
-`master` actúa antes del limitador: subirlo aprieta más la mezcla contra el
-techo, bajarlo deja respirar la dinámica. No es el volumen de escucha de
-Studio, que solo afecta a los altavoces.
+`master` se aplica **después** del limitador, así que escala el archivo
+entero de forma predecible: `master 0.5` son 6 dB menos. Con 1 la pieza sale
+a -1 dBTP, el techo de las plataformas; `master 0.55` la deja cerca de los
+-14 LUFS a los que YouTube y Spotify normalizan.
+
+No es el volumen de escucha de Studio, que solo afecta a los altavoces y no
+toca lo que se exporta.
 
 Una pieza no puede pasar de una hora. El límite existe porque un tempo muy
 lento con muchos ciclos pide cientos de gigabytes al renderizar; es mejor

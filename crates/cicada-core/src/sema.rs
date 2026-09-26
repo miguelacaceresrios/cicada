@@ -103,8 +103,8 @@ impl Analyzer {
         let master = self.setting(
             "master",
             1.0,
-            |v| (0.0..=2.0).contains(&v),
-            "un volumen entre 0 y 2",
+            |v| (0.0..=1.0).contains(&v),
+            "un nivel entre 0 y 1",
         );
         let length = self.setting(
             "length",
