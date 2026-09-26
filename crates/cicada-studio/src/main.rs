@@ -13,7 +13,8 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
-const EXAMPLE: &str = include_str!("../../../examples/hakken.cicada");
+/// Lo que se abre la primera vez: el primero de los tutoriales.
+const EXAMPLE: &str = include_str!("../../../examples/01-primeros-pasos.cicada");
 static ICON: &[u8] = include_bytes!("../assets/icon.png");
 
 /// `Documentos\CICADA`, donde viven las piezas del usuario.
@@ -26,7 +27,7 @@ pub fn documents_dir() -> Option<PathBuf> {
 /// `Documentos\CICADA`, que se crea la primera vez.
 pub fn default_file() -> Option<PathBuf> {
     let dir = documents_dir()?;
-    let path = dir.join("hakken.cicada");
+    let path = dir.join("01-primeros-pasos.cicada");
     if !path.exists() {
         std::fs::create_dir_all(&dir).ok()?;
         std::fs::write(&path, EXAMPLE).ok()?;

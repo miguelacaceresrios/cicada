@@ -1,3 +1,5 @@
+mod project;
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -131,7 +133,17 @@ fn run(cli: Cli) -> Result<ExitCode> {
     let base_dir = file.parent().unwrap_or(Path::new("."));
 
     match cli.command {
-        Command::Check { .. } => print_summary(file, &program),
+        Command::Check { .. } => {
+            let problems = cicada_audio::check_samples(&program, base_dir);
+            if !problems.is_empty() {
+                let name = file.display().to_string();
+                for d in &problems {
+                    eprintln!("{}", d.render(&name, &source));
+                }
+                return Ok(ExitCode::FAILURE);
+            }
+            print_summary(file, &program);
+        }
         Command::Render {
             out, sample_rate, ..
         } => {
@@ -249,26 +261,36 @@ fn run(cli: Cli) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Compila el archivo. Los errores del lenguaje se imprimen aquí y devuelven `None`.
+/// Compila el archivo. Los errores se imprimen aquí y devuelven `None`.
 fn load(path: &Path) -> Result<Option<(String, Program)>> {
-    let src = std::fs::read_to_string(path)
-        .with_context(|| format!("no se pudo leer {}", path.display()))?;
-    match cicada_core::compile(&src) {
-        Ok(program) => Ok(Some((src, program))),
-        Err(diags) => {
-            let name = path.display().to_string();
-            for d in &diags {
-                eprintln!("{}", d.render(&name, &src));
+    match project::load(path) {
+        Ok(piece) => Ok(Some((piece.source, piece.program))),
+        Err(errors) => {
+            for e in &errors {
+                eprintln!("{e}");
             }
-            let plural = if diags.len() == 1 { "" } else { "es" };
-            eprintln!("{} error{plural} en {name}", diags.len());
+            let plural = if errors.len() == 1 { "" } else { "es" };
+            eprintln!("{} error{plural} en {}", errors.len(), path.display());
             Ok(None)
         }
     }
 }
 
 fn print_summary(file: &Path, p: &Program) {
-    let names: Vec<_> = p.tracks.iter().map(|t| t.name.as_str()).collect();
+    // Con una paleta importada hay sonidos declarados que esta pieza no
+    // toca. Listar los nueve como si sonaran todos despista.
+    let used: Vec<&str> = p
+        .tracks
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| {
+            p.sections
+                .iter()
+                .any(|s| s.layers.iter().any(|l| l.track == *i))
+        })
+        .map(|(_, t)| t.name.as_str())
+        .collect();
+    let spare = p.tracks.len() - used.len();
     println!("✓ {}", file.display());
     if let Some(title) = &p.title {
         let by = p
@@ -281,7 +303,12 @@ fn print_summary(file: &Path, p: &Program) {
         "  {} bpm · {} beats por ciclo · seed {}",
         p.bpm, p.beats, p.seed
     );
-    println!("  {} pistas: {}", names.len(), names.join(", "));
+    let extra = match spare {
+        0 => String::new(),
+        1 => "  (+1 declarada sin usar)".into(),
+        n => format!("  (+{n} declaradas sin usar)"),
+    };
+    println!("  {} pistas: {}{extra}", used.len(), used.join(", "));
     println!("  {} ciclos · {}", p.length(), clock(p.duration_seconds()));
     for s in &p.sections {
         println!(

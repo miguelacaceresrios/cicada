@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  4 · EFECTOS Y ESTÉREO
+#
+#  Los efectos se declaran con el sonido, porque actúan sobre toda la pista
+#  y no sobre un golpe suelto. Los ajustes de voz (gain, dist, pan) sí
+#  valen en una línea concreta.
+# ─────────────────────────────────────────────────────────────────────────
+
+title "Efectos"
+artist "CICADA"
+
+bpm 195
+length 16
+
+#            ┌ paso bajo: quita agudos
+#            │        ┌ paso alto: quita graves y hace sitio al kick
+#            │        │        ┌ cuánto se manda al eco y a la reverb
+bajo  = synth sine lpf 250 gain 0.55
+plomo = synth square hpf 500 delay 0.35 reverb 0.3 gain 0.28
+aire  = synth saw lpf 3000 reverb 0.6 gain 0.2
+
+# `pan` reparte en estéreo: -1 izquierda, 0 centro, 1 derecha.
+kick   X...x...X...x... dist 0.9
+snare  ....x.......x... gain 0.8 pan -0.3
+hat    x?x?x?x?x?x?x?x? gain 0.55 pan 0.35
+bajo   C1 C1 G0 C1
+plomo  C4 [D#4 D4] G4 [C5 G4] pan 0.4
+aire   ~ ~ ~ [G5 C6] pan -0.5
+
+# PRUEBA A:  sube  dist  del kick de 0 a 1 poco a poco y escucha cómo pasa
+#            de bombo limpio a kick gabber.
+# PRUEBA B:  baja el `lpf` del bajo a 120: se vuelve un sub puro.
+# PRUEBA C:  pon  reverb 1  en `aire` y verás la cola alargarse.
+# PRUEBA D:  poner un efecto en una línea de patrón da error a propósito,
+#            y el mensaje te dice dónde va. Pruébalo.

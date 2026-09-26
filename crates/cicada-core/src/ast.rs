@@ -21,6 +21,8 @@ pub enum Item {
         name: Spanned<String>,
         value: Spanned<String>,
     },
+    /// `import "paleta.cicada"`
+    Import(Spanned<String>),
     /// `bass = synth saw gain 0.8`
     Sound(SoundDecl),
     /// `drop 16:` seguido de líneas indentadas

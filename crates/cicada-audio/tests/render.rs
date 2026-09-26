@@ -21,7 +21,7 @@ fn window(from: f64, to: f64) -> std::ops::Range<usize> {
 
 #[test]
 fn same_code_same_samples() {
-    let src = include_str!("../../../examples/hakken.cicada");
+    let src = include_str!("../../../examples/04-efectos.cicada");
     assert_eq!(render_src(src), render_src(src));
 }
 

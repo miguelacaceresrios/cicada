@@ -30,6 +30,9 @@ pub struct Diagnostic {
     pub message: String,
     pub pos: Pos,
     pub help: Option<String>,
+    /// Archivo al que pertenece `pos`, si no es el que se está compilando.
+    /// Lo rellena la resolución de `import`.
+    pub file: Option<String>,
 }
 
 impl Diagnostic {
@@ -38,11 +41,19 @@ impl Diagnostic {
             message: message.into(),
             pos,
             help: None,
+            file: None,
         }
     }
 
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
         self.help = Some(help.into());
+        self
+    }
+
+    /// Marca el error como perteneciente a un archivo importado. El primero
+    /// gana: un error dentro de una paleta anidada conserva su archivo real.
+    pub fn in_file(mut self, file: &str) -> Self {
+        self.file.get_or_insert_with(|| file.to_string());
         self
     }
 

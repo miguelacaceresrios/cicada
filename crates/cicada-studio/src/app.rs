@@ -235,9 +235,21 @@ impl Studio {
 
     fn compile(&mut self, ctx: &egui::Context) {
         self.compiled = self.source.clone();
-        match cicada_core::compile(&self.source) {
+        let base = self.base_dir();
+        // Los `import` se leen de la carpeta de la pieza en cada compilación,
+        // así que tocar la paleta y volver al editor basta para oír el cambio.
+        let compiled = cicada_core::compile_with(&self.source, &mut |import| {
+            let full = base.join(import);
+            std::fs::read_to_string(&full).map_err(|e| format!("{}: {e}", full.display()))
+        });
+        match compiled {
             Ok(program) => {
-                self.diagnostics.clear();
+                // Los samples que faltan se avisan aquí, junto a los errores
+                // del lenguaje, en vez de reventar luego al renderizar.
+                self.diagnostics = cicada_audio::check_samples(&program, &self.base_dir());
+                if !self.diagnostics.is_empty() {
+                    return;
+                }
                 self.generation += 1;
                 // Si la pieza suena igual que la que ya está cargada, basta
                 // con refrescar las visuales: renderizar de nuevo un minuto
@@ -726,10 +738,18 @@ impl Studio {
                         .show(ui, |ui| {
                             for d in &self.diagnostics {
                                 ui.horizontal_wrapped(|ui| {
+                                    // Un error dentro de una paleta lleva su
+                                    // nombre: si no, parecería estar aquí.
+                                    let place = match &d.file {
+                                        Some(file) => {
+                                            format!("{file}:{}:{}", d.pos.line, d.pos.col)
+                                        }
+                                        None => format!("{}:{}", d.pos.line, d.pos.col),
+                                    };
                                     ui.label(
-                                        RichText::new(format!("{}:{}", d.pos.line, d.pos.col))
+                                        RichText::new(place)
                                             .monospace()
-                                            .color(DIM),
+                                            .color(if d.file.is_some() { ACCENT } else { DIM }),
                                     );
                                     ui.label(&d.message);
                                 });
@@ -906,17 +926,31 @@ impl Studio {
             .id_salt("tracks")
             .show(ui, |ui| {
                 egui::Grid::new("tracks")
-                    .num_columns(3)
+                    .num_columns(4)
                     .spacing(vec2(18.0, 6.0))
                     .show(ui, |ui| {
                         for (i, track) in program.tracks.iter().enumerate() {
                             let role = cicada_visual::timeline::Role::of(track);
+                            let sections: Vec<&str> = program
+                                .sections
+                                .iter()
+                                .filter(|s| s.layers.iter().any(|l| l.track == i))
+                                .map(|s| s.name.as_str())
+                                .collect();
+                            // Una paleta importada trae sonidos que esta pieza
+                            // no toca: se ven, pero apagados.
+                            let unused = sections.is_empty();
                             ui.horizontal(|ui| {
                                 let (chip, _) =
                                     ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                                 ui.painter()
                                     .rect_filled(chip, 2.0, theme::color(role_color(role)));
-                                ui.label(RichText::new(&track.name).family(theme::bold()));
+                                let name = RichText::new(&track.name).family(theme::bold());
+                                ui.label(if unused {
+                                    name.color(theme::GUTTER)
+                                } else {
+                                    name
+                                });
                             });
                             ui.label(RichText::new(track.sound.describe()).monospace().color(DIM));
                             ui.label(
@@ -924,12 +958,6 @@ impl Studio {
                                     .monospace()
                                     .color(theme::GUTTER),
                             );
-                            let sections: Vec<&str> = program
-                                .sections
-                                .iter()
-                                .filter(|s| s.layers.iter().any(|l| l.track == i))
-                                .map(|s| s.name.as_str())
-                                .collect();
                             ui.label(RichText::new(sections.join(" · ")).color(DIM));
                             ui.end_row();
                         }

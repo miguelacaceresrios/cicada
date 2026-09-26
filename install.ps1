@@ -67,8 +67,13 @@ $studio = Join-Path $dest 'cicada-studio.exe'
 
 Step "Ejemplos en $docs"
 New-Item -ItemType Directory -Force $docs | Out-Null
-Get-ChildItem (Join-Path $root 'examples\*.cicada') | ForEach-Object {
-    $target = Join-Path $docs $_.Name
+$examples = Join-Path $root 'examples'
+Get-ChildItem $examples -Recurse -Filter *.cicada | ForEach-Object {
+    # Se respeta la carpeta del disco de ejemplo, que importa su paleta.
+    $rel = $_.FullName.Substring($examples.Length).Trim([char]92)
+    $target = Join-Path $docs $rel
+    $dir = Split-Path $target
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
     if (-not (Test-Path $target)) { Copy-Item $_.FullName $target }
 }
 

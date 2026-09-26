@@ -15,6 +15,8 @@ use crate::note::parse_note;
 pub const SETTINGS: &[&str] = &["bpm", "seed", "beats", "length", "master"];
 /// Datos de la pieza: van entre comillas y acaban en la cabecera del vídeo.
 pub const META: &[&str] = &["title", "artist"];
+/// Trae los sonidos de otro archivo.
+pub const IMPORT: &str = "import";
 /// Modificadores de voz: valen tanto en la declaración de un sonido como en
 /// una línea de patrón, donde afectan solo a esa línea.
 pub const VOICE_MODIFIERS: &[&str] = &["gain", "dist", "pan", "prob"];
@@ -27,6 +29,16 @@ pub fn is_modifier(name: &str) -> bool {
 }
 
 const PATTERN_HELP: &str = "golpes: x X ? .  ·  notas: C1 F#2 Bb0  ·  silencio: ~";
+
+/// Sonidos que pueden ir tras el `=` de una declaración.
+pub const SOURCES: &[&str] = &["kick", "snare", "hat", "synth", "sample"];
+
+fn render_number(tok: &Token) -> String {
+    match &tok.kind {
+        TokKind::Number(n) => format!("{n}"),
+        _ => String::new(),
+    }
+}
 
 pub fn parse(src: &str) -> Result<File, Vec<Diagnostic>> {
     let (lines, diags) = lex(src);
@@ -97,6 +109,7 @@ impl Parser {
             &toks[0],
             "se esperaba un ajuste, un sonido, una sección o una pista",
         )?;
+        self.check_common_slips(line, &head)?;
         if SETTINGS.contains(&head.value.as_str()) {
             let value = self.single_number(line, &head)?;
             return Some(Item::Setting { name: head, value });
@@ -105,7 +118,69 @@ impl Parser {
             let value = self.single_string(line, &head)?;
             return Some(Item::Meta { name: head, value });
         }
+        if head.value == IMPORT {
+            return self.single_string(line, &head).map(Item::Import);
+        }
         self.pattern(head, &toks[1..]).map(Item::Pattern)
+    }
+
+    /// Errores frecuentes que, sin un aviso a medida, acaban en un mensaje
+    /// genérico sobre patrones que no ayuda a nadie.
+    fn check_common_slips(&mut self, line: &Line, head: &Spanned<String>) -> P<()> {
+        let name = &head.value;
+        let lower = name.to_lowercase();
+
+        // `BPM 200`: la palabra existe, pero en mayúsculas.
+        if lower != *name
+            && (SETTINGS.contains(&lower.as_str())
+                || META.contains(&lower.as_str())
+                || lower == IMPORT)
+        {
+            self.error_help(
+                head.pos,
+                format!("`{name}` no existe"),
+                format!("los ajustes van en minúscula: `{lower}`"),
+            );
+            return None;
+        }
+
+        // `energy` suelto se parece a una cabecera sin dos puntos, pero el
+        // error es otro.
+        if name == "energy" {
+            self.error_help(
+                head.pos,
+                "`energy` solo vale dentro de una sección",
+                "ponlo indentado bajo una cabecera como `drop 16:`",
+            );
+            return None;
+        }
+
+        // `drop 8` sin los dos puntos.
+        let numeric = matches!(
+            line.tokens.get(1).map(|t| &t.kind),
+            Some(TokKind::Number(_))
+        );
+        if line.tokens.len() == 2 && numeric && !SETTINGS.contains(&name.as_str()) {
+            self.error_help(
+                line.tokens[1].pos.after(),
+                "falta `:` al final de la cabecera de sección",
+                format!("así: `{name} {}:`", render_number(&line.tokens[1])),
+            );
+            return None;
+        }
+
+        // `bass synth saw`, sin el `=`.
+        if let Some(TokKind::Word(second)) = line.tokens.get(1).map(|t| &t.kind)
+            && SOURCES.contains(&second.as_str())
+        {
+            self.error_help(
+                head.pos.after(),
+                format!("falta `=` para darle un sonido a `{name}`"),
+                format!("así: `{name} = {second} …`"),
+            );
+            return None;
+        }
+        Some(())
     }
 
     fn word(&mut self, tok: &Token, msg: &str) -> P<Spanned<String>> {
@@ -405,6 +480,18 @@ impl Parser {
                 pos,
             })]);
         }
+        if let Some(help) = note_hint(w) {
+            self.error_help(pos, format!("`{w}` no es una nota válida"), help);
+            return None;
+        }
+        if w == "energy" {
+            self.error_help(
+                pos,
+                "`energy` solo vale dentro de una sección",
+                "ponlo indentado bajo una cabecera como `drop 16:`",
+            );
+            return None;
+        }
         let mut out = Vec::new();
         for (k, c) in w.chars().enumerate() {
             let pos = Pos {
@@ -430,4 +517,40 @@ impl Parser {
         }
         Some(out)
     }
+}
+
+/// Por qué una palabra que parece una nota no lo es. Devuelve `None` si ni
+/// siquiera lo parece, para no dar consejos sobre un patrón de golpes.
+fn note_hint(w: &str) -> Option<String> {
+    let first = w.chars().next()?;
+    if !matches!(first.to_ascii_uppercase(), 'A'..='G') {
+        return None;
+    }
+    // `c1` en vez de `C1`.
+    if first.is_lowercase() {
+        let fixed: String = first.to_ascii_uppercase().to_string() + &w[first.len_utf8()..];
+        if parse_note(&fixed).is_some() {
+            return Some(format!("las notas llevan la letra en mayúscula: `{fixed}`"));
+        }
+    }
+    // `C1#` en vez de `C#1`, o `BB1` en vez de `Bb1`.
+    let upper = first.to_ascii_uppercase();
+    let rest = &w[first.len_utf8()..];
+    if let Some(digits) = rest.strip_suffix('#') {
+        let fixed = format!("{upper}#{digits}");
+        if parse_note(&fixed).is_some() {
+            return Some(format!("la alteración va antes de la octava: `{fixed}`"));
+        }
+    }
+    if let Some(digits) = rest.strip_prefix('B') {
+        let fixed = format!("{upper}b{digits}");
+        if parse_note(&fixed).is_some() {
+            return Some(format!("el bemol se escribe en minúscula: `{fixed}`"));
+        }
+    }
+    // Bien escrita, pero fuera del rango MIDI.
+    if rest.trim_start_matches(['#', 'b']).parse::<i32>().is_ok() {
+        return Some("la octava va de 0 a 9, y como mucho hasta G9".into());
+    }
+    None
 }

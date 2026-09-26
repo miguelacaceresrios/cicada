@@ -1,0 +1,39 @@
+title "Ritual"
+artist "Isometrical"
+import "paleta.cicada"
+
+bpm 200
+seed 2026
+
+cierre x?x?x?x?x?x?x?x?
+
+intro 8:
+  energy 0.3
+  golpe x...x...x...x...
+  aire  ~ ~ C5 ~
+
+build 8:
+  energy 0.6
+  golpe x...x...x...x...
+  caja  ....x.......[xx]x
+  sub   C1 ~ C1 ~
+
+drop 16:
+  energy 1
+  golpe X...x...X...x...
+  caja  ....x.......x...
+  sub   C1 C1 G0 C1
+  plomo C4 [D#4 D4] G4 [C5 G4] pan 0.4
+
+break 4:
+  energy 0.2
+  plomo C4 ~ G3 ~
+  aire  ~ G4 ~ [C5 D#5]
+
+drop2 16:
+  energy 1
+  golpe X.x.X.x.X.x.X.[xx]
+  caja  ....x.......x...
+  sub   C1 C1 G0 [C1 C2]
+  plomo C5 [D#5 D5] G4 [C5 G5] pan 0.4
+  aire  ~ ~ ~ [G5 C6] pan -0.45

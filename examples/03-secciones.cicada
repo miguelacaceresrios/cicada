@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  3 · SECCIONES
+#
+#  Una pieza de verdad tiene partes. Cada sección dice cuántos ciclos dura
+#  y cuánta energía tiene, y eso es lo que usan las visuales para cambiar
+#  de escena: mira la vista previa mientras suena.
+# ─────────────────────────────────────────────────────────────────────────
+
+title "Secciones"
+artist "CICADA"
+
+bpm 190
+
+bajo = synth saw gain 0.5 lpf 900
+
+# Un patrón fuera de toda sección suena en TODAS. Aquí el hat es el hilo
+# que cose la pieza entera.
+hat x?x?x?x?x?x?x?x? gain 0.55 pan 0.3
+
+# El nombre de la sección elige la escena visual: intro, build, drop,
+# break y outro tienen la suya. `drop2` también cuenta como drop.
+intro 8:
+  energy 0.3
+  kick x...x...x...x...
+
+build 8:
+  energy 0.6
+  kick  x...x...x...x...
+  snare ....x.......[xx]x gain 0.8
+  bajo  C1 ~ C1 ~
+
+drop 16:
+  energy 1
+  kick  X...x...X...x... dist 0.85
+  snare ....x.......x... gain 0.8 pan -0.25
+  bajo  C1 C1 G0 C1
+
+break 4:
+  energy 0.2
+  bajo C2 ~ G1 ~
+
+# PRUEBA A:  baja la `energy` del drop a 0.4 y mira la vista previa.
+# PRUEBA B:  renombra `break` a `outro` y cambia la escena.
+# PRUEBA C:  alarga el drop a 32 ciclos.

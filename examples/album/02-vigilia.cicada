@@ -1,0 +1,33 @@
+# El mismo disco, otra pieza: mismos sonidos, otro tempo y otra tonalidad.
+title "Vigilia"
+artist "Isometrical"
+import "paleta.cicada"
+
+bpm 185
+seed 41
+
+intro 8:
+  energy 0.25
+  seco   x.......x.......
+  cuerda F1 ~ ~ ~
+  aire   ~ ~ ~ C5
+
+build 12:
+  energy 0.55
+  seco   x...x...x...x...
+  cierre ..x...x...x...x.
+  mano   ....?.......?...
+  cuerda F1 ~ C2 ~
+
+drop 16:
+  energy 1
+  golpe  X...x...X...x...
+  caja   ....x.......x...
+  cierre x?x?x?x?x?x?x?x?
+  sub    F1 F1 C1 F1
+  plomo  F4 [G#4 G4] C5 [F5 C5] pan -0.35
+
+outro 8:
+  energy 0.15
+  cuerda F1 ~ ~ ~
+  aire   ~ ~ C5 ~

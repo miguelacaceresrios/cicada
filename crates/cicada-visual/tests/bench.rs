@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use cicada_visual::{Options, Visualizer};
 
-const SRC: &str = include_str!("../../../examples/hakken.cicada");
+const SRC: &str = include_str!("../../../examples/03-secciones.cicada");
 const FRAMES: usize = 120;
 
 fn bench(label: &str, options: Options) {

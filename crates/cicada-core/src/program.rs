@@ -28,6 +28,8 @@ pub struct Program {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Track {
     pub name: String,
+    /// Dónde aparece la pista en el código, para poder señalarla.
+    pub pos: Pos,
     pub sound: Sound,
     pub params: Params,
     pub fx: Fx,
@@ -196,9 +198,10 @@ pub struct Event {
 pub const MAX_SECONDS: f64 = 3600.0;
 
 /// Compara dos secciones por lo que suena. Se dejan fuera la línea de la
-/// cabecera y la posición de cada paso: mueven el resaltado del editor, no el
-/// audio, así que añadir un comentario no debería obligar a renderizar otra
-/// vez la pieza entera.
+/// cabecera y la posición de cada paso, igual que en las pistas se deja
+/// fuera dónde se declaran: mueven el resaltado del editor, no el audio, así
+/// que añadir un comentario no debería obligar a renderizar otra vez la
+/// pieza entera.
 fn section_sounds_like((a, b): (&Section, &Section)) -> bool {
     a.name == b.name
         && a.kind == b.kind
@@ -227,7 +230,10 @@ impl Program {
             && self.master == other.master
             && self.beats == other.beats
             && self.seed == other.seed
-            && self.tracks == other.tracks
+            && self.tracks.len() == other.tracks.len()
+            && self.tracks.iter().zip(&other.tracks).all(|(a, b)| {
+                a.name == b.name && a.sound == b.sound && a.params == b.params && a.fx == b.fx
+            })
             && self.sections.len() == other.sections.len()
             && self
                 .sections

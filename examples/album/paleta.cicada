@@ -1,0 +1,22 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  PALETA DEL DISCO
+#
+#  Solo sonidos: ni ajustes, ni secciones, ni patrones. Cada track la trae
+#  con  import "paleta.cicada"  y así todos comparten el mismo bombo y el
+#  mismo bajo. Cambia algo aquí y cambia en todo el disco.
+#
+#  Este archivo también se puede abrir solo: es una pieza válida, muda.
+# ─────────────────────────────────────────────────────────────────────────
+
+# Percusión
+golpe  = kick  dist 0.85
+seco   = kick  dist 0.35 lpf 2000
+caja   = snare gain 0.8  pan -0.25
+cierre = hat   gain 0.55 pan 0.3
+mano   = snare gain 0.4  hpf 1200 reverb 0.35 pan 0.25
+
+# Graves y melodía
+sub    = synth sine   gain 0.6  lpf 220
+cuerda = synth saw    gain 0.45 lpf 900
+plomo  = synth square gain 0.28 hpf 450 delay 0.3 reverb 0.25
+aire   = synth saw    gain 0.2  lpf 3000 reverb 0.55

@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  1 · PRIMEROS PASOS
+#
+#  Todo lo que hace falta para que suene algo. Pulsa F5 y ve cambiando
+#  cosas: cada edición se oye al momento, sin cortar la reproducción.
+# ─────────────────────────────────────────────────────────────────────────
+
+title "Primeros pasos"
+artist "CICADA"
+
+bpm 175          # velocidad
+length 8         # cuántos ciclos dura, al no haber secciones
+
+# Un patrón es una pista y sus pasos. Cada carácter es un paso, y todos
+# juntos reparten un ciclo: aquí hay ocho pasos, así que cada uno dura una
+# corchea.
+#
+#   x  golpe        X  golpe fuerte
+#   .  silencio     ?  suena la mitad de las veces
+#
+# `kick`, `snare` y `hat` existen sin declarar nada.
+
+kick   x...x...
+snare  ....x...
+hat    ..x...x.
+
+# PRUEBA A:  cambia el kick a  x.x.x.x.  y mira cómo se dobla el pulso.
+# PRUEBA B:  pon  ?  donde haya  .  en el hat, para que respire.
+# PRUEBA C:  sube el bpm a 210 y verás que todo se acelera a la vez.

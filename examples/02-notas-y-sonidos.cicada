@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  2 · NOTAS Y SONIDOS
+#
+#  Además de golpes hay notas, y para tocarlas hace falta declarar con qué
+#  suena la pista.
+# ─────────────────────────────────────────────────────────────────────────
+
+title "Notas y sonidos"
+artist "CICADA"
+
+bpm 180
+length 8
+
+# `pista = sonido [ajustes]`. Las ondas son saw, square y sine.
+bajo  = synth saw gain 0.5
+lead  = synth square gain 0.28
+
+# Las notas se escriben con la letra en MAYÚSCULA y la octava detrás:
+# C1 es un do grave, C4 el do central. El sostenido va en medio (C#2) y el
+# bemol en minúscula (Bb1). El silencio es `~`.
+#
+# Ojo: aquí los pasos se separan con espacios, no van pegados como los
+# golpes. Estos cuatro pasos reparten el ciclo en negras.
+
+bajo  C1 C1 G0 C1
+lead  C4 ~  G4 ~
+
+kick  x...x...x...x...
+
+# Un grupo `[ ]` ocupa UN paso y lo reparte por dentro: aquí el último paso
+# se parte en dos corcheas.
+hat   x x x [x x]
+
+# PRUEBA A:  cambia el bajo a  C1 C1 [G0 A#0] C1
+# PRUEBA B:  pon  lead  a  sine  y compara: square muerde, sine es suave.
+# PRUEBA C:  sube  gain  del lead a 0.5 y verás que se come al bajo.

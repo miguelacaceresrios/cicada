@@ -75,7 +75,8 @@ empieza un drop, sin tener que adivinarlo analizando la señal de audio.
 | **Determinismo** | Mismo código + misma seed ⇒ las mismas muestras. Hay tests que lo comprueban. |
 | **Tiempo musical exacto** | Se escribe en ciclos y subdivisiones, que se guardan como fracciones, nunca como segundos. |
 | **Separación estricta** | El lenguaje no sabe de audio, el audio no sabe de la interfaz y la IR conecta todo. |
-| **Errores que ayudan** | Cada error señala la línea y la columna, e incluye una sugerencia. |
+| **Errores que ayudan** | Cada error señala la línea, la columna y qué escribir en su lugar. |
+| **Sonidos que se comparten** | Una paleta importada da a todo un disco el mismo bombo y el mismo bajo. |
 | **Suena alto sin romperse** | Limitador de pico real a -1 dBTP: la mezcla va alta y no distorsiona al subirla a YouTube. |
 
 ## Instalar (Windows)
@@ -113,15 +114,32 @@ Atajos: `F5` reproducir o pausar, `Ctrl+S` guardar, `Ctrl+O` abrir.
 ## Desde la terminal
 
 ```sh
-cargo run --release -- check  examples/hakken.cicada
-cargo run --release -- play   examples/hakken.cicada
-cargo run --release -- render examples/hakken.cicada   # → examples/hakken.wav
-cargo run --release -- video  examples/hakken.cicada   # → examples/hakken.mp4
+cargo run --release -- check  examples/album/01-ritual.cicada
+cargo run --release -- play   examples/album/01-ritual.cicada
+cargo run --release -- render examples/album/01-ritual.cicada   # → examples/album/01-ritual.wav
+cargo run --release -- video  examples/album/01-ritual.cicada   # → examples/album/01-ritual.mp4
 cargo test
 ```
 
 `video` necesita [FFmpeg](https://ffmpeg.org) en el `PATH` (en Windows:
 `winget install Gyan.FFmpeg`) o su ruta en la variable `CICADA_FFMPEG`.
+
+## Ejemplos
+
+En [examples/](examples/) hay cinco piezas que se leen en orden, cada una
+con su tema y con cosas que tocar al final:
+
+| | |
+| --- | --- |
+| [01 · Primeros pasos](examples/01-primeros-pasos.cicada) | Golpes, silencios y tempo |
+| [02 · Notas y sonidos](examples/02-notas-y-sonidos.cicada) | Declarar un synth y tocar notas |
+| [03 · Secciones](examples/03-secciones.cicada) | Intro, build, drop y break, con sus escenas |
+| [04 · Efectos](examples/04-efectos.cicada) | Filtros, delay, reverb y estéreo |
+| [05 · Azar](examples/05-azar.cicada) | `?`, `seed` y por qué siempre suena igual |
+
+Y en [examples/album/](examples/album/) hay un mini disco: una
+[paleta](examples/album/paleta.cicada) con los sonidos y dos tracks que la
+importan. Es el caso para el que existe `import`.
 
 La sintaxis completa está en [docs/LANGUAGE.md](docs/LANGUAGE.md).
 
@@ -146,7 +164,7 @@ cada frame sabe exactamente qué suena en ese instante.
 
 | Drop | Break |
 | --- | --- |
-| ![Drop de hakken.cicada: rayos rojos y el código iluminado](docs/drop.png) | ![Break de hakken.cicada: niebla azul y fría](docs/break.png) |
+| ![Drop de 01-ritual.cicada: rayos rojos y el código iluminado](docs/drop.png) | ![Break de 01-ritual.cicada: niebla azul y fría](docs/break.png) |
 
 - **Impulsos**: cada kick es un golpe de zoom y aberración cromática; cada
   snare, un glitch.

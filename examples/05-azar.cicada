@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  5 · AZAR QUE NO CAMBIA
+#
+#  `?` es un golpe que suena a veces. Pero el azar de CICADA es siempre el
+#  mismo: el mismo código con la misma `seed` da las mismas muestras, hoy y
+#  dentro de un año. Puedes renderizar la pieza mil veces y no se mueve.
+# ─────────────────────────────────────────────────────────────────────────
+
+title "Azar que no cambia"
+artist "CICADA"
+
+bpm 200
+seed 7          # cambia este número y cambia TODO el azar de la pieza
+length 16
+
+kick  x...x...x...x...
+
+# `prob` decide cuánto suenan los `?` de esa línea.
+hat   x?x?x?x?x?x?x?x? gain 0.55 prob 0.7
+ruido = snare gain 0.35 hpf 2000 reverb 0.4
+ruido ..?...?...?...?. prob 0.4
+
+# `a*n` repite un paso n veces: 16 golpes por ciclo, con la mitad al azar.
+tick  = hat gain 0.3 pan 0.5
+tick  ?*16 prob 0.3
+
+# PRUEBA A:  cambia `seed 7` a `seed 8`: otro patrón, igual de repetible.
+# PRUEBA B:  sube  prob  del hat a 1 y deja de haber huecos.
+# PRUEBA C:  renderiza dos veces a WAV y compara los archivos: son idénticos.

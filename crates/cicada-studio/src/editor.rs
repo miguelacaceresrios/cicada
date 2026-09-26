@@ -39,8 +39,12 @@ pub fn layout_job(text: &str, font: FontId, active: &[Active], errors: &[Diagnos
                     format.color = theme::color(INK);
                 }
             }
+            // `d.file` marca los errores que están en una paleta importada:
+            // sus líneas no corresponden a este texto.
             let error = errors.iter().any(|d| {
-                d.pos.line == line_no && (d.pos.col..d.pos.col + d.pos.len.max(1)).contains(&col)
+                d.file.is_none()
+                    && d.pos.line == line_no
+                    && (d.pos.col..d.pos.col + d.pos.len.max(1)).contains(&col)
             });
             if error {
                 format.background = Color32::from_rgb(90, 14, 12);
@@ -87,7 +91,9 @@ pub fn gutter_job(
     let width = total.to_string().len();
     let mut job = LayoutJob::default();
     for line in 1..=total {
-        let failed = errors.iter().any(|d| d.pos.line == line);
+        let failed = errors
+            .iter()
+            .any(|d| d.file.is_none() && d.pos.line == line);
         let color = match (failed, current == Some(line)) {
             (true, _) => ACCENT,
             (_, true) => theme::TEXT,

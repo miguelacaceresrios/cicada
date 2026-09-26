@@ -36,6 +36,7 @@ drop 16:
 | --- | --- | --- |
 | `ajuste valor` | `bpm 195` | Ajuste global |
 | `dato "texto"` | `title "Rotterdam"` | Datos de la pieza |
+| `import "archivo"` | `import "paleta.cicada"` | Trae los sonidos de otro archivo |
 | `pista = sonido [mods]` | `bass = synth saw gain 0.8` | Declaración de sonido |
 | `nombre ciclos:` | `drop 16:` | Sección; su cuerpo va indentado |
 | `pista patrón [mods]` | `kick x.x.x.x. dist 0.7` | Patrón |
@@ -75,6 +76,43 @@ la barra inferior, que es lo que necesita una publicación en YouTube.
 title "Hakken Ritual"
 artist "Isometrical"
 ```
+
+### Importar una paleta
+
+Un disco entero suele compartir el mismo bombo y el mismo bajo. En vez de
+copiarlos en cada track, se ponen en un archivo aparte y se importan:
+
+```text
+# paleta.cicada — solo sonidos, ni un ajuste
+golpe = kick  dist 0.85
+sub   = synth sine gain 0.6 lpf 220
+plomo = synth square hpf 450 delay 0.3
+```
+
+```text
+# 01-ritual.cicada
+import "paleta.cicada"
+bpm 200
+
+drop 16:
+  golpe X...x...X...x...
+  sub   C1 C1 G0 C1
+```
+
+Reglas:
+
+- La ruta es **relativa al archivo que importa**.
+- Un archivo importado **solo puede declarar sonidos**. Un ajuste, una
+  sección o un patrón dentro de él son un error, y el mensaje dice dónde
+  está el problema y en qué archivo.
+- Una paleta puede importar otra. Un círculo se detecta y se avisa.
+- Los errores dentro de una paleta se muestran con su archivo y su línea,
+  no con los del track que la importa.
+- Si el track declara un sonido que ya trae la paleta, es un choque de
+  nombres y se avisa: no se sobrescribe en silencio.
+
+La paleta por sí sola es una pieza válida, muda: se puede abrir y comprobar
+como cualquier otra.
 
 ### Sonidos
 

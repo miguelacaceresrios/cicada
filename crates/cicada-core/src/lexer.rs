@@ -29,12 +29,15 @@ pub struct Line {
     pub tokens: Vec<Token>,
 }
 
+// Los nombres admiten acentos y eñes: una sección puede llamarse `explosión`
+// y ese nombre acaba en pantalla, así que obligar a escribirlo sin tilde
+// sería una pega tonta en una herramienta pensada en español.
 fn is_word_start(c: char) -> bool {
-    c.is_ascii_alphabetic() || matches!(c, '_' | '.' | '?' | '~')
+    c.is_alphabetic() || matches!(c, '_' | '.' | '?' | '~')
 }
 
 fn is_word_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '?' | '~' | '#')
+    c.is_alphanumeric() || matches!(c, '_' | '.' | '?' | '~' | '#')
 }
 
 pub fn lex(src: &str) -> (Vec<Line>, Vec<Diagnostic>) {
@@ -115,10 +118,15 @@ pub fn lex(src: &str) -> (Vec<Line>, Vec<Diagnostic>) {
                 }
                 _ => {
                     j += 1;
-                    diags.push(Diagnostic::new(
-                        at(start, j),
-                        format!("carácter inesperado `{c}`"),
-                    ));
+                    let pos = at(start, j);
+                    let mut diag = Diagnostic::new(pos, format!("carácter inesperado `{c}`"));
+                    // Los dos resbalones más comunes al escribir en español.
+                    if c == ',' {
+                        diag = diag.with_help("los decimales se escriben con punto: 0.5");
+                    } else if c == '\'' {
+                        diag = diag.with_help("el texto va entre comillas dobles: \"ruta.wav\"");
+                    }
+                    diags.push(diag);
                     continue;
                 }
             };

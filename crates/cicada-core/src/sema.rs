@@ -209,6 +209,7 @@ impl Analyzer {
         self.apply_mods(&decl.mods, &mut params, Some(&mut fx));
         self.add_track(Track {
             name: name.clone(),
+            pos: decl.source.pos,
             sound,
             params,
             fx,
@@ -242,6 +243,7 @@ impl Analyzer {
         };
         Some(self.add_track(Track {
             name: name.value.clone(),
+            pos: name.pos,
             sound,
             params: Params::default(),
             fx: Fx::NONE,

@@ -169,7 +169,7 @@ regla específica de destellos rojos saturados.
 ## Rendimiento
 
 Medido en un Intel i5-1135G7 con gráficos Iris Xe, sobre
-`examples/hakken.cicada` (64 s, 6 pistas).
+`examples/album/01-ritual.cicada` (64 s, 6 pistas).
 
 | Tarea | Antes | Ahora |
 | --- | --- | --- |

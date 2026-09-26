@@ -10,6 +10,40 @@ use std::fmt;
 use std::path::Path;
 
 pub use engine::{Engine, render};
+
+/// Comprueba que los samples de la pieza existen y se pueden leer.
+///
+/// El núcleo no toca el disco a propósito, así que esto vive aquí. Sin ello
+/// `check` daba el visto bueno y luego `render` fallaba, que es la peor
+/// combinación posible.
+pub fn check_samples(
+    program: &cicada_core::Program,
+    base_dir: &Path,
+) -> Vec<cicada_core::Diagnostic> {
+    program
+        .tracks
+        .iter()
+        .filter_map(|track| {
+            let cicada_core::Sound::Sample(path) = &track.sound else {
+                return None;
+            };
+            let full = base_dir.join(path);
+            let problem = if !full.exists() {
+                format!("no existe el sample `{path}`")
+            } else if hound::WavReader::open(&full).is_err() {
+                format!("`{path}` no es un WAV que CICADA sepa leer")
+            } else {
+                return None;
+            };
+            Some(
+                cicada_core::Diagnostic::new(track.pos, problem).with_help(format!(
+                    "la ruta es relativa al archivo .cicada: se buscó en {}",
+                    full.display()
+                )),
+            )
+        })
+        .collect()
+}
 pub use fx::CHANNELS;
 
 #[derive(Debug)]
