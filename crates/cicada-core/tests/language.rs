@@ -388,3 +388,33 @@ hat  ..x.
         assert!(!base.sounds_like(&compile(distinto).unwrap()), "{distinto}");
     }
 }
+
+#[test]
+fn master_volume() {
+    assert_eq!(compile("kick x...").unwrap().master, 1.0);
+    assert_eq!(
+        compile(
+            "master 0.6
+kick x..."
+        )
+        .unwrap()
+        .master,
+        0.6
+    );
+    assert_eq!(
+        errors(
+            "master 5
+kick x..."
+        ),
+        ["`master` debe ser un volumen entre 0 y 2"]
+    );
+
+    // Cambiar el volumen sí altera el audio: hay que renderizar de nuevo.
+    let a = compile("kick x...").unwrap();
+    let b = compile(
+        "master 0.6
+kick x...",
+    )
+    .unwrap();
+    assert!(!a.sounds_like(&b));
+}

@@ -131,3 +131,56 @@ l C2 ~
     );
     assert!(out.len() < 60 * SR as usize * CHANNELS);
 }
+
+#[test]
+fn master_never_exceeds_the_true_peak_ceiling() {
+    // El pico real es el que alcanza la onda entre muestras: es el que hace
+    // recortar a un conversor o a un codificador AAC, y un limitador que
+    // solo mire las muestras lo deja pasar.
+    let out = render_src(
+        "a = synth saw gain 4
+kick x*8 gain 4 dist 1
+snare x*8 gain 4
+a C1*8
+length 4
+",
+    );
+    let left: Vec<f32> = out.iter().step_by(2).copied().collect();
+    let peak = left.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak < 0.95, "pico de muestra {peak}");
+
+    // Interpolación a 4x entre muestras, como hace la norma BS.1770.
+    let mut worst = peak;
+    for w in left.windows(4) {
+        for k in 1..4 {
+            let t = k as f32 / 4.0;
+            // Interpolación cúbica de Catmull-Rom: se acerca a lo que
+            // reconstruye un conversor mucho más que unir puntos con rectas.
+            let (p0, p1, p2, p3) = (w[0], w[1], w[2], w[3]);
+            let v = p1
+                + 0.5
+                    * t
+                    * ((p2 - p0)
+                        + t * ((2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3)
+                            + t * (3.0 * (p1 - p2) + p3 - p0)));
+            worst = worst.max(v.abs());
+        }
+    }
+    assert!(worst <= 1.0, "pico real {worst}");
+}
+
+#[test]
+fn master_setting_changes_the_level() {
+    let normal = render_src(
+        "kick x*4
+length 2
+",
+    );
+    let bajo = render_src(
+        "master 0.4
+kick x*4
+length 2
+",
+    );
+    assert!(rms(&bajo) < rms(&normal) * 0.75);
+}

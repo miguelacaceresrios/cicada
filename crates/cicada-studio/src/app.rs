@@ -556,6 +556,30 @@ impl Studio {
                     ui.spinner();
                 }
 
+                if let Some(player) = &self.player {
+                    ui.separator();
+                    let mut volume = player.volume();
+                    ui.label(RichText::new("VOL").small().color(DIM));
+                    let slider = egui::Slider::new(&mut volume, 0.0..=1.0)
+                        .show_value(false)
+                        .custom_formatter(|v, _| format!("{:.0} %", v * 100.0));
+                    if ui
+                        .add_sized([110.0, 18.0], slider)
+                        .on_hover_text(
+                            "Volumen de escucha. No cambia lo que se exporta:\n\
+                             el WAV y el vídeo salen siempre al nivel de la pieza.",
+                        )
+                        .changed()
+                    {
+                        player.set_volume(volume);
+                    }
+                    ui.label(
+                        RichText::new(format!("{:>3.0}%", volume * 100.0))
+                            .monospace()
+                            .color(DIM),
+                    );
+                }
+
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let can_export = self.program.is_some() && self.export.is_none();
                     if ui

@@ -52,6 +52,11 @@ declararlo.
 | `beats` | beats por ciclo, entero de 1 a 32 | 4 |
 | `seed` | entero ≥ 0 | 0 |
 | `length` | duración en ciclos si no hay secciones | 8 |
+| `master` | volumen general, entre 0 y 2 | 1 |
+
+`master` actúa antes del limitador: subirlo aprieta más la mezcla contra el
+techo, bajarlo deja respirar la dinámica. No es el volumen de escucha de
+Studio, que solo afecta a los altavoces.
 
 Una pieza no puede pasar de una hora. El límite existe porque un tempo muy
 lento con muchos ciclos pide cientos de gigabytes al renderizar; es mejor

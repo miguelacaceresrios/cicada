@@ -100,6 +100,12 @@ impl Analyzer {
             |v| (1.0..=32.0).contains(&v) && v.fract() == 0.0,
             "un entero entre 1 y 32",
         );
+        let master = self.setting(
+            "master",
+            1.0,
+            |v| (0.0..=2.0).contains(&v),
+            "un volumen entre 0 y 2",
+        );
         let length = self.setting(
             "length",
             8.0,
@@ -132,6 +138,7 @@ impl Analyzer {
             title: self.meta.remove("title"),
             artist: self.meta.remove("artist"),
             bpm,
+            master: master as f32,
             beats: beats as u32,
             seed: seed as u64,
             tracks: self.tracks,

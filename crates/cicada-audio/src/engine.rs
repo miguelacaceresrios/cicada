@@ -9,8 +9,9 @@ use crate::AudioError;
 use crate::fx::{self, CHANNELS, Delay, Frame, Limiter, Reverb, SvfCoeffs, TrackFilter};
 use crate::voice::{Kind, Voice};
 
-/// Empuja la mezcla contra el limitador: el hardcore vive alto, y el
-/// limitador con escucha previa aguanta ese empuje sin chasquear.
+/// Cuánto se empuja la mezcla contra el limitador. El hardcore vive alto, y
+/// el limitador con escucha previa aguanta ese empuje sin chasquear. El
+/// ajuste `master` de la pieza multiplica este valor.
 const MASTER: f32 = 1.25;
 /// Tiempo del delay en ciclos. Tres dieciseisavos caen a contratiempo del
 /// pulso, que es lo que hace que el eco empuje en vez de emborronar.
@@ -56,6 +57,7 @@ pub struct Engine {
     uses_delay: bool,
     uses_reverb: bool,
     limiter: Limiter,
+    master: f32,
     pos: u64,
     end: u64,
     sample_rate: u32,
@@ -138,6 +140,7 @@ impl Engine {
             uses_delay,
             uses_reverb,
             limiter: Limiter::new(sr),
+            master: MASTER * program.master,
             pos: 0,
             end: (program.length() as f64 * samples_per_cycle).round() as u64,
             sample_rate,
@@ -202,7 +205,9 @@ impl Engine {
             if self.uses_reverb {
                 mixed = fx::mix(mixed, self.reverb.run(to_reverb), REVERB_LEVEL);
             }
-            let out_frame = self.limiter.run([mixed[0] * MASTER, mixed[1] * MASTER]);
+            let out_frame = self
+                .limiter
+                .run([mixed[0] * self.master, mixed[1] * self.master]);
             *frame = out_frame;
             self.pos += 1;
         }

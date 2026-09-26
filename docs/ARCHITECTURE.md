@@ -93,7 +93,18 @@ al master.
 El master no recorta: lleva un **limitador con escucha previa** de 4 ms, que
 baja el volumen *antes* de que llegue el pico. Así la mezcla puede ir tan alta
 como pide el género sin el chasquido de un recorte duro. Detrás queda un
-recorte suave que solo actúa por encima de 0.9, como red de seguridad.
+recorte suave, como red de seguridad.
+
+Mide el **pico real**, no el de las muestras. Entre dos muestras la onda pasa
+por valores más altos que cualquiera de ellas, y es ahí donde recortan los
+conversores y los codificadores con pérdida: una primera versión dejaba las
+muestras en 0 dBFS pero el pico real llegaba a **+3,3 dBFS**, así que el
+archivo distorsionaba en cuanto YouTube lo pasaba a AAC. El detector
+interpola a 4x, como la norma BS.1770, y el techo queda en **-1 dBTP**.
+
+La ganancia se calcula sobre el **mínimo deslizante** de la ventana, no sobre
+el pico instantáneo: con el valor instantáneo, un pico de una sola muestra
+apenas movía la ganancia y volvía a subir antes de que el pico saliera.
 
 Esos 4 ms de escucha previa retrasarían todo el audio, así que `render`
 descarta las primeras muestras: cada evento vuelve a caer en su muestra exacta
@@ -235,6 +246,7 @@ guarda una captura y cierra; así se generó `docs/studio.png`.
 | Lenguaje completo y errores con su posición | `core/tests/language.rs` |
 | Consulta por partes = consulta entera | `query_is_the_union_of_its_parts` |
 | Mismo código ⇒ mismas muestras | `audio/tests/render.rs` |
+| El pico real nunca pasa del techo | `master_never_exceeds_the_true_peak_ceiling` |
 | La salida es estéreo y el `pan` la abre | `output_is_stereo` |
 | El master nunca recorta, ni con todo a tope | `master_never_clips` |
 | Filtros, delay y reverb cambian el sonido | `filters_and_sends_change_the_sound` |

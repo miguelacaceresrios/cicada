@@ -2,7 +2,7 @@
 //! master. Todo es DSP propio en `f32` y sin estado compartido, para que dos
 //! renders del mismo código den exactamente las mismas muestras.
 
-use std::f32::consts::PI;
+use std::f32::consts::{PI, TAU};
 
 pub type Frame = [f32; 2];
 
@@ -243,9 +243,129 @@ impl Allpass {
     }
 }
 
+/// Taps por fase del detector de picos entre muestras.
+const TP_TAPS: usize = 12;
+/// Cuántas muestras intermedias se miran entre cada par de muestras reales.
+const TP_PHASES: usize = 4;
+
+/// Detector de pico real (inter-sample).
+///
+/// Mirar solo las muestras no basta: al reconstruir la onda, un conversor o
+/// un codificador AAC pasan por valores más altos que cualquier muestra
+/// suelta. Con la mezcla muy limitada esa diferencia llegaba a 3 dB, y ahí
+/// es donde recorta de verdad. Se interpola a 4x solo para medir; el audio
+/// que sale no pasa por este filtro.
+struct TruePeak {
+    coeffs: [[f32; TP_TAPS]; TP_PHASES],
+    history: [[f32; TP_TAPS]; CHANNELS],
+}
+
+impl TruePeak {
+    fn new() -> TruePeak {
+        // Sinc enventanado con Hann, cortado a la Nyquist original.
+        let center = (TP_TAPS * TP_PHASES) as f32 / 2.0 - 0.5;
+        let mut coeffs = [[0.0; TP_TAPS]; TP_PHASES];
+        for (phase, row) in coeffs.iter_mut().enumerate() {
+            let mut sum = 0.0;
+            for (tap, value) in row.iter_mut().enumerate() {
+                let n = (tap * TP_PHASES + phase) as f32;
+                let x = (n - center) / TP_PHASES as f32;
+                let sinc = if x.abs() < 1e-6 {
+                    1.0
+                } else {
+                    (PI * x).sin() / (PI * x)
+                };
+                let window = 0.5 - 0.5 * (TAU * n / (TP_TAPS * TP_PHASES - 1) as f32).cos();
+                *value = sinc * window;
+                sum += *value;
+            }
+            // Normalizar cada fase para que no altere el nivel de continua.
+            for value in row.iter_mut() {
+                *value /= sum;
+            }
+        }
+        TruePeak {
+            coeffs,
+            history: [[0.0; TP_TAPS]; CHANNELS],
+        }
+    }
+
+    /// El mayor valor absoluto que alcanza la onda alrededor de esta muestra.
+    fn peak(&mut self, input: Frame) -> f32 {
+        let mut worst = 0.0f32;
+        for (ch, history) in self.history.iter_mut().enumerate() {
+            history.rotate_right(1);
+            history[0] = input[ch];
+            worst = worst.max(input[ch].abs());
+            for row in &self.coeffs {
+                let mut sum = 0.0;
+                for (c, h) in row.iter().zip(history.iter()) {
+                    sum += c * h;
+                }
+                worst = worst.max(sum.abs());
+            }
+        }
+        worst
+    }
+}
+
 /// Limitador del master con escucha previa: retrasa la señal lo justo para
 /// bajar el volumen *antes* de que llegue el pico, así el sonido se mantiene
 /// fuerte sin el chasquido de un recorte duro.
+/// Mínimo deslizante sobre una ventana.
+///
+/// Sin esto, un pico de una sola muestra apenas movía la ganancia: el
+/// suavizado volvía a subir antes de que el pico llegara a la salida. Con el
+/// mínimo, la ganancia empieza a bajar en cuanto el pico entra en la ventana
+/// y llega a su sitio justo a tiempo.
+struct SlidingMin {
+    /// Valores de la ventana, en orden de llegada.
+    values: Vec<f32>,
+    write: usize,
+    len: usize,
+    /// Índices cuyos valores forman el mínimo creciente. El frente es el
+    /// mínimo actual.
+    queue: std::collections::VecDeque<usize>,
+    /// Contador absoluto de muestras, para saber qué índices han caducado.
+    now: usize,
+}
+
+impl SlidingMin {
+    fn new(len: usize) -> SlidingMin {
+        SlidingMin {
+            values: vec![1.0; len],
+            write: 0,
+            len,
+            queue: std::collections::VecDeque::with_capacity(len),
+            now: 0,
+        }
+    }
+
+    fn push(&mut self, value: f32) -> f32 {
+        // Fuera los que ya no caben en la ventana.
+        while self
+            .queue
+            .front()
+            .is_some_and(|&i| i + self.len <= self.now)
+        {
+            self.queue.pop_front();
+        }
+        // Fuera los que este valor deja obsoletos: nunca volverán a ser mínimo.
+        while self
+            .queue
+            .back()
+            .is_some_and(|&i| self.values[i % self.len] >= value)
+        {
+            self.queue.pop_back();
+        }
+        self.values[self.write] = value;
+        self.queue.push_back(self.now);
+        self.write = wrap(self.write, self.len);
+        self.now += 1;
+        self.values[self.queue[0] % self.len]
+    }
+}
+
 pub struct Limiter {
     lookahead: Vec<Frame>,
     index: usize,
@@ -253,6 +373,8 @@ pub struct Limiter {
     attack: f32,
     release: f32,
     threshold: f32,
+    true_peak: TruePeak,
+    required: SlidingMin,
 }
 
 impl Limiter {
@@ -262,10 +384,18 @@ impl Limiter {
             lookahead: vec![[0.0; CHANNELS]; lookahead],
             index: 0,
             gain: 1.0,
-            // El ataque cabe holgadamente dentro de la escucha previa.
-            attack: 1.0 - (-1.0 / (0.0012 * sr)).exp(),
+            // El ataque tarda una cuarta parte de la escucha previa, así que
+            // llega a su valor antes de que el pico salga.
+            attack: 1.0 - (-4.0 / (0.004 * sr)).exp(),
             release: 1.0 - (-1.0 / (0.15 * sr)).exp(),
-            threshold: 0.97,
+            // Ajustado para que el pico real medido quede por debajo de
+            // -1 dBTP, el techo que piden las plataformas para que la
+            // codificación con pérdida no recorte. El detector propio es algo
+            // menos fino que el de la norma, y este margen cubre la
+            // diferencia.
+            threshold: 0.81,
+            true_peak: TruePeak::new(),
+            required: SlidingMin::new(lookahead),
         }
     }
 
@@ -274,12 +404,13 @@ impl Limiter {
         self.lookahead[self.index] = input;
         self.index = wrap(self.index, self.lookahead.len());
 
-        let peak = input[0].abs().max(input[1].abs());
-        let target = if peak > self.threshold {
+        let peak = self.true_peak.peak(input);
+        let instant = if peak > self.threshold {
             self.threshold / peak
         } else {
             1.0
         };
+        let target = self.required.push(instant);
         let coeff = if target < self.gain {
             self.attack
         } else {

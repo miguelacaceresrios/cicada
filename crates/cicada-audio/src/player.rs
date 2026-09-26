@@ -19,6 +19,9 @@ struct State {
     buffer: Arc<[f32]>,
     pos: usize,
     playing: bool,
+    /// Volumen de escucha, de 0 a 1. Solo afecta a lo que sale por los
+    /// altavoces: lo que se exporta no pasa por aquí.
+    volume: f32,
 }
 
 pub struct Player {
@@ -45,6 +48,7 @@ impl Player {
             buffer: Arc::from([]),
             pos: 0,
             playing: false,
+            volume: 0.7,
         }));
 
         let stream = match format {
@@ -105,6 +109,16 @@ impl Player {
         self.with(|s| s.playing)
     }
 
+    /// Volumen de escucha, de 0 a 1. No toca el render: `render` y los
+    /// archivos exportados salen siempre al nivel que dicta la pieza.
+    pub fn volume(&self) -> f32 {
+        self.with(|s| s.volume)
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        self.with(|s| s.volume = volume.clamp(0.0, 1.0));
+    }
+
     pub fn seek(&self, seconds: f64) {
         let sr = self.sample_rate as f64;
         self.with(|s| {
@@ -144,10 +158,17 @@ fn build<T: SizedSample + FromSample<f32>>(
                     data.fill(T::from_sample(0.0f32));
                     return;
                 };
+                // Curva de volumen al cubo: el oído no percibe el volumen de
+                // forma lineal, y con un deslizador lineal casi todo el
+                // recorrido útil se apelotona al principio.
+                let volume = s.volume * s.volume * s.volume;
                 for frame in data.chunks_mut(channels) {
                     let stereo = if s.playing && s.pos + CHANNELS <= s.buffer.len() {
                         s.pos += CHANNELS;
-                        [s.buffer[s.pos - CHANNELS], s.buffer[s.pos - CHANNELS + 1]]
+                        [
+                            s.buffer[s.pos - CHANNELS] * volume,
+                            s.buffer[s.pos - CHANNELS + 1] * volume,
+                        ]
                     } else {
                         s.playing = false;
                         [0.0; CHANNELS]

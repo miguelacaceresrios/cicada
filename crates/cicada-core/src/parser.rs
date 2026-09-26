@@ -12,7 +12,7 @@ use crate::diag::{Diagnostic, Pos, Spanned};
 use crate::lexer::{Line, TokKind, Token, lex};
 use crate::note::parse_note;
 
-pub const SETTINGS: &[&str] = &["bpm", "seed", "beats", "length"];
+pub const SETTINGS: &[&str] = &["bpm", "seed", "beats", "length", "master"];
 /// Datos de la pieza: van entre comillas y acaban en la cabecera del vídeo.
 pub const META: &[&str] = &["title", "artist"];
 /// Modificadores de voz: valen tanto en la declaración de un sonido como en

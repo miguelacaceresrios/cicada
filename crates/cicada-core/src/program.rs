@@ -14,6 +14,9 @@ pub struct Program {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub bpm: f64,
+    /// Volumen general de la pieza, antes del limitador. Subirlo la aprieta
+    /// más contra el techo; bajarlo deja respirar la dinámica.
+    pub master: f32,
     /// Beats por ciclo.
     pub beats: u32,
     pub seed: u64,
@@ -221,6 +224,7 @@ impl Program {
     /// retocar un comentario se nota al escribir.
     pub fn sounds_like(&self, other: &Program) -> bool {
         self.bpm == other.bpm
+            && self.master == other.master
             && self.beats == other.beats
             && self.seed == other.seed
             && self.tracks == other.tracks

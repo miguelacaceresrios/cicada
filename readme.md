@@ -76,7 +76,7 @@ empieza un drop, sin tener que adivinarlo analizando la señal de audio.
 | **Tiempo musical exacto** | Se escribe en ciclos y subdivisiones, que se guardan como fracciones, nunca como segundos. |
 | **Separación estricta** | El lenguaje no sabe de audio, el audio no sabe de la interfaz y la IR conecta todo. |
 | **Errores que ayudan** | Cada error señala la línea y la columna, e incluye una sugerencia. |
-| **Suena alto sin romperse** | Limitador con escucha previa en el master; ni con todas las pistas a tope recorta. |
+| **Suena alto sin romperse** | Limitador de pico real a -1 dBTP: la mezcla va alta y no distorsiona al subirla a YouTube. |
 
 ## Instalar (Windows)
 
@@ -105,6 +105,7 @@ tocan.
 - **Vista previa en vivo** con el mismo shader que el vídeo exportado.
 - **Los pasos se iluminan** en el editor mientras suenan.
 - **Línea de tiempo** con las secciones y su energía; un clic salta a ese momento.
+- **Volumen de escucha** independiente de lo que se exporta.
 - **Exportar** a WAV y a MP4. Si falta FFmpeg, ofrece instalarlo con `winget`.
 
 Atajos: `F5` reproducir o pausar, `Ctrl+S` guardar, `Ctrl+O` abrir.
