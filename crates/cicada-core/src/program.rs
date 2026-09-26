@@ -24,6 +24,7 @@ pub struct Track {
     pub name: String,
     pub sound: Sound,
     pub params: Params,
+    pub fx: Fx,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -51,6 +52,8 @@ impl Sound {
 pub struct Params {
     pub gain: f32,
     pub dist: f32,
+    /// Posición estéreo: -1 izquierda, 0 centro, 1 derecha.
+    pub pan: f32,
     /// Probabilidad de los golpes `?`.
     pub prob: f32,
 }
@@ -60,8 +63,51 @@ impl Default for Params {
         Params {
             gain: 1.0,
             dist: 0.0,
+            pan: 0.0,
             prob: 0.5,
         }
+    }
+}
+
+/// Efectos de una pista. Se aplican a la suma de sus voces, no a cada golpe:
+/// un filtro o un delay por golpe no tendría sentido musical ni sería estable.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fx {
+    /// Corte del paso bajo en Hz; `None` si la pista no lo lleva.
+    pub lpf: Option<f32>,
+    pub hpf: Option<f32>,
+    /// Cuánto se manda al delay y a la reverb comunes, de 0 a 1.
+    pub delay: f32,
+    pub reverb: f32,
+}
+
+impl Fx {
+    pub const NONE: Fx = Fx {
+        lpf: None,
+        hpf: None,
+        delay: 0.0,
+        reverb: 0.0,
+    };
+
+    pub fn is_none(&self) -> bool {
+        *self == Fx::NONE
+    }
+
+    /// Cómo se escribiría en el código, para el inspector de Studio.
+    pub fn describe(&self) -> String {
+        let mut out = Vec::new();
+        if let Some(hz) = self.lpf {
+            out.push(format!("lpf {hz:.0}"));
+        }
+        if let Some(hz) = self.hpf {
+            out.push(format!("hpf {hz:.0}"));
+        }
+        for (name, v) in [("delay", self.delay), ("reverb", self.reverb)] {
+            if v > 0.0 {
+                out.push(format!("{name} {v}"));
+            }
+        }
+        out.join(" ")
     }
 }
 
@@ -132,6 +178,7 @@ pub struct Event {
     pub velocity: f32,
     pub gain: f32,
     pub dist: f32,
+    pub pan: f32,
     /// Posición en el código del paso que lo genera: el editor y el vídeo la
     /// usan para iluminar el código mientras suena.
     pub src: Pos,
@@ -204,6 +251,7 @@ impl Program {
                         velocity,
                         gain: layer.params.gain,
                         dist: layer.params.dist,
+                        pan: layer.params.pan,
                         src: slot.src,
                     });
                 }

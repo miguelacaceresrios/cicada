@@ -10,8 +10,9 @@ pero el lenguaje no está atado a ningún género.
 bpm 200
 seed 2026
 
-bass = synth saw gain 0.7
-hat  x?x?x?x?x?x?x?x? gain 0.5
+bass = synth saw gain 0.5 lpf 900
+lead = synth square gain 0.3 delay 0.3 reverb 0.2
+hat  x?x?x?x?x?x?x?x? gain 0.6 pan 0.35
 
 intro 8:
   energy 0.3
@@ -20,8 +21,9 @@ intro 8:
 drop 16:
   energy 1
   kick  X...x...X...x... dist 0.9
-  snare ....x.......x...
+  snare ....x.......x... pan -0.25
   bass  C1 C1 G0 [C1 C2]
+  lead  C4 [D#4 D4] G4 [C5 G4] pan 0.4
 ```
 
 ```sh
@@ -71,6 +73,7 @@ empieza un drop, sin tener que adivinarlo analizando la señal de audio.
 | **Tiempo musical exacto** | Se escribe en ciclos y subdivisiones, que se guardan como fracciones, nunca como segundos. |
 | **Separación estricta** | El lenguaje no sabe de audio, el audio no sabe de la interfaz y la IR conecta todo. |
 | **Errores que ayudan** | Cada error señala la línea y la columna, e incluye una sugerencia. |
+| **Suena alto sin romperse** | Limitador con escucha previa en el master; ni con todas las pistas a tope recorta. |
 
 ## Instalar (Windows)
 
@@ -89,8 +92,8 @@ tocan.
 
 ## CICADA Studio
 
-- **Editor** con resaltado. Los errores se subrayan mientras escribes, con su
-  posición y una ayuda.
+- **Editor** con números de línea y resaltado. Los errores se subrayan
+  mientras escribes, con su posición y una ayuda.
 - **Recarga en caliente**: cada cambio se oye al instante, sin cortar la
   reproducción ni volver al principio.
 - **Vista previa en vivo** con el mismo shader que el vídeo exportado.
@@ -120,7 +123,7 @@ La sintaxis completa está en [docs/LANGUAGE.md](docs/LANGUAGE.md).
 | Crate | Responsabilidad |
 | --- | --- |
 | `cicada-core` | Lexer, parser, análisis semántico, motor de patrones e IR. Solo depende de `serde`. |
-| `cicada-audio` | Síntesis propia (kick gabber, snare, hat, osciladores PolyBLEP, samples), render y tiempo real (CPAL) |
+| `cicada-audio` | Síntesis propia (kick gabber, snare, hat, osciladores PolyBLEP, samples), efectos, mezcla estéreo con limitador, render y tiempo real (CPAL) |
 | `cicada-visual` | Línea de tiempo visual, shader en `wgpu`, código en pantalla y exportación con FFmpeg |
 | `cicada-cli` | Comandos `check`, `render`, `play`, `video`, `frame` e `ir` |
 | `cicada-studio` | La aplicación de escritorio (egui) |
@@ -155,7 +158,7 @@ cada frame sabe exactamente qué suena en ese instante.
 | --- | --- | --- |
 | **0.1 — Sonar** | De texto a audio | ✅ lenguaje, secciones, seeds, IR, síntesis, WAV, `play` · pendiente: pulir el sonido del kick |
 | **0.2 — Ver** | Un vídeo listo para YouTube | ✅ motor visual en `wgpu`, cuatro escenas, código en pantalla, limitador de destellos, `cicada video` → MP4 · siguiente: vista previa en ventana, texturas a partir de la FFT |
-| **0.3 — Componer** | Piezas más ricas | Transformaciones (`euclid`, `every`, `rev`), automatización, FX (filtros, delay, reverb, bitcrush) |
+| **0.3 — Componer** | Piezas más ricas | ✅ estéreo, filtros, delay, reverb y limitador · siguiente: transformaciones (`euclid`, `every`, `rev`) y automatización |
 | **0.4 — En vivo** | Live coding | ✅ CICADA Studio con recarga en caliente · siguiente: MIDI y controladores, grabar la sesión en vivo |
 | **0.5 — Web** | Probar sin instalar | Playground en el navegador con el core compilado a WASM |
 
@@ -169,6 +172,10 @@ Es una herramienta pequeña para componer escribiendo.
 CICADA nace para producir un LP de Hakken / Gabber donde cada track es una
 sesión reproducible, y un mismo `track.cicada` produce `track.wav` y
 `track.mp4` perfectamente sincronizados.
+
+## Licencia
+
+[MIT](LICENSE).
 
 ## Créditos
 

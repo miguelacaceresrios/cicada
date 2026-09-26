@@ -165,3 +165,72 @@ fn windows_files_compile() {
     assert_eq!(p.bpm, 150.0);
     assert_eq!(p.length(), 2);
 }
+
+#[test]
+fn stereo_and_fx_modifiers() {
+    let p = compile(
+        "lead = synth saw lpf 800 hpf 120 delay 0.4 reverb 0.5 gain 0.7 pan -0.3
+lead C4 C4
+",
+    )
+    .unwrap();
+    let track = &p.tracks[0];
+    assert_eq!(track.fx.lpf, Some(800.0));
+    assert_eq!(track.fx.hpf, Some(120.0));
+    assert_eq!((track.fx.delay, track.fx.reverb), (0.4, 0.5));
+    assert_eq!((track.params.gain, track.params.pan), (0.7, -0.3));
+    // Los eventos llevan el pan, porque se aplica voz a voz.
+    assert!(
+        p.query(Rational::ZERO, Rational::ONE)
+            .iter()
+            .all(|e| e.pan == -0.3)
+    );
+}
+
+#[test]
+fn a_pattern_line_overrides_only_the_voice() {
+    let p = compile(
+        "hat x.x. gain 0.5 pan 1
+kick x...
+",
+    )
+    .unwrap();
+    let hat = p.query(Rational::ZERO, Rational::ONE);
+    let hat = hat
+        .iter()
+        .find(|e| p.tracks[e.track].name == "hat")
+        .unwrap();
+    assert_eq!((hat.gain, hat.pan), (0.5, 1.0));
+
+    // Un efecto en la línea de patrón se rechaza, y la ayuda dice dónde va.
+    let err = compile(
+        "lead = synth saw
+lead C4 reverb 0.5
+",
+    )
+    .unwrap_err();
+    assert_eq!(
+        err[0].message,
+        "`reverb` se aplica a toda la pista, no a una línea"
+    );
+    assert!(
+        err[0]
+            .help
+            .as_ref()
+            .unwrap()
+            .contains("synth saw reverb 0.5")
+    );
+}
+
+#[test]
+fn fx_ranges_are_checked() {
+    assert_eq!(
+        errors("l = synth saw lpf 10"),
+        ["`lpf` debe estar entre 20 y 20000"]
+    );
+    assert_eq!(
+        errors("l = synth saw reverb 2"),
+        ["`reverb` debe estar entre 0 y 1"]
+    );
+    assert_eq!(errors("hat x pan -2"), ["`pan` debe estar entre -1 y 1"]);
+}

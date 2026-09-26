@@ -6,18 +6,51 @@ use cicada_core::note::midi_to_hz;
 use cicada_core::{EventKind, Program, Rational, Sound, rng};
 
 use crate::AudioError;
+use crate::fx::{self, CHANNELS, Delay, Frame, Limiter, Reverb, SvfCoeffs, TrackFilter};
 use crate::voice::{Kind, Voice};
 
-const MASTER: f32 = 0.6;
+/// Empuja la mezcla contra el limitador: el hardcore vive alto, y el
+/// limitador con escucha previa aguanta ese empuje sin chasquear.
+const MASTER: f32 = 1.25;
+/// Tiempo del delay en ciclos. Tres dieciseisavos caen a contratiempo del
+/// pulso, que es lo que hace que el eco empuje en vez de emborronar.
+const DELAY_CYCLES: f64 = 3.0 / 16.0;
+const DELAY_FEEDBACK: f32 = 0.38;
+/// Nivel de la reverb en el master. La suma de peines de Freeverb sale muy
+/// baja, así que sin esto `reverb 1` casi no se oía.
+const REVERB_LEVEL: f32 = 1.6;
 
-/// Convierte eventos en muestras. Procesa bloques de cualquier tamaño y no
-/// sabe si escribe a un archivo o a la tarjeta de sonido: `render` y `play`
-/// comparten exactamente este código.
+/// Los efectos de una pista, ya resueltos a coeficientes.
+struct Bus {
+    filter: TrackFilter,
+    lpf: Option<SvfCoeffs>,
+    hpf: Option<SvfCoeffs>,
+    delay: f32,
+    reverb: f32,
+    /// Suma de las voces de la pista en esta muestra.
+    sum: Frame,
+    /// Una pista sin efectos va directa al master, sin tocar filtro ni envíos.
+    plain: bool,
+}
+
+/// Convierte eventos en muestras estéreo. Procesa bloques de cualquier tamaño
+/// y no sabe si escribe a un archivo o a la tarjeta de sonido: `render` y
+/// `play` comparten exactamente este código.
+///
+/// ```text
+/// voces --pan--> bus de pista --lpf/hpf--> master --> limitador
+///                             \--envíos--> delay + reverb --^
+/// ```
 pub struct Engine {
     /// Voces pendientes, ordenadas por la muestra en la que empiezan.
-    scheduled: Vec<(u64, Voice)>,
+    scheduled: Vec<(u64, usize, Voice)>,
     next: usize,
-    active: Vec<Voice>,
+    /// Voces sonando, cada una con el índice de su pista.
+    active: Vec<(usize, Voice)>,
+    buses: Vec<Bus>,
+    delay: Delay,
+    reverb: Reverb,
+    limiter: Limiter,
     pos: u64,
     end: u64,
     sample_rate: u32,
@@ -35,6 +68,20 @@ impl Engine {
                 samples.insert(i, load_sample(&base_dir.join(path), sample_rate)?);
             }
         }
+
+        let buses = program
+            .tracks
+            .iter()
+            .map(|t| Bus {
+                filter: TrackFilter::default(),
+                lpf: t.fx.lpf.map(|hz| SvfCoeffs::new(hz, 0.707, sr)),
+                hpf: t.fx.hpf.map(|hz| SvfCoeffs::new(hz, 0.707, sr)),
+                delay: t.fx.delay,
+                reverb: t.fx.reverb,
+                sum: [0.0; CHANNELS],
+                plain: t.fx.is_none(),
+            })
+            .collect();
 
         let events = program.query(Rational::ZERO, Rational::int(program.length()));
         let scheduled = events
@@ -60,17 +107,21 @@ impl Engine {
                     },
                 };
                 let noise_seed = rng::hash(&[program.seed, at, ev.track as u64]);
-                (
-                    at,
-                    Voice::new(kind, ev.velocity * ev.gain, ev.dist, sr, noise_seed),
-                )
+                let voice =
+                    Voice::new(kind, ev.velocity * ev.gain, ev.pan, ev.dist, sr, noise_seed);
+                (at, ev.track, voice)
             })
             .collect();
 
+        let delay_seconds = (DELAY_CYCLES * program.seconds_per_cycle()) as f32;
         Ok(Engine {
             scheduled,
             next: 0,
             active: Vec::with_capacity(256),
+            buses,
+            delay: Delay::new(delay_seconds, DELAY_FEEDBACK, sr),
+            reverb: Reverb::new(sr),
+            limiter: Limiter::new(sr),
             pos: 0,
             end: (program.length() as f64 * samples_per_cycle).round() as u64,
             sample_rate,
@@ -81,26 +132,59 @@ impl Engine {
         self.sample_rate
     }
 
+    /// Retraso que añade el limitador, en muestras por canal.
+    pub fn latency(&self) -> usize {
+        self.limiter.latency()
+    }
+
     /// Terminó la pieza y se apagó la última voz.
     pub fn is_finished(&self) -> bool {
         self.pos >= self.end && self.next == self.scheduled.len() && self.active.is_empty()
     }
 
-    /// Rellena `out` (mono) con las siguientes muestras.
+    /// Rellena `out` con muestras estéreo intercaladas: izquierda, derecha,
+    /// izquierda... Su longitud debe ser par.
     pub fn process(&mut self, out: &mut [f32]) {
-        for sample in out.iter_mut() {
-            while let Some((at, voice)) = self.scheduled.get(self.next) {
+        for frame in out.chunks_mut(CHANNELS) {
+            while let Some((at, track, voice)) = self.scheduled.get(self.next) {
                 if *at > self.pos {
                     break;
                 }
-                self.active.push(voice.clone());
+                self.active.push((*track, voice.clone()));
                 self.next += 1;
             }
-            let mix: f32 = self.active.iter_mut().map(Voice::next).sum();
-            *sample = (mix * MASTER).tanh();
+
+            for bus in &mut self.buses {
+                bus.sum = [0.0; CHANNELS];
+            }
+            for (track, voice) in &mut self.active {
+                let sample = voice.next();
+                let bus = &mut self.buses[*track];
+                bus.sum = fx::mix(bus.sum, fx::pan(sample, voice.pan()), 1.0);
+            }
+
+            let mut dry = [0.0; CHANNELS];
+            let mut to_delay = [0.0; CHANNELS];
+            let mut to_reverb = [0.0; CHANNELS];
+            for bus in &mut self.buses {
+                if bus.plain {
+                    dry = fx::mix(dry, bus.sum, 1.0);
+                    continue;
+                }
+                let wet = bus.filter.run(bus.sum, bus.lpf, bus.hpf);
+                dry = fx::mix(dry, wet, 1.0);
+                to_delay = fx::mix(to_delay, wet, bus.delay);
+                to_reverb = fx::mix(to_reverb, wet, bus.reverb);
+            }
+
+            let echo = self.delay.run(to_delay);
+            let tail = self.reverb.run(to_reverb);
+            let mixed = fx::mix(fx::mix(dry, echo, 1.0), tail, REVERB_LEVEL);
+            let out_frame = self.limiter.run([mixed[0] * MASTER, mixed[1] * MASTER]);
+            frame.copy_from_slice(&out_frame);
             self.pos += 1;
         }
-        self.active.retain(|v| !v.is_done());
+        self.active.retain(|(_, v)| !v.is_done());
     }
 }
 
@@ -111,13 +195,32 @@ pub fn render(
     base_dir: &Path,
 ) -> Result<Vec<f32>, AudioError> {
     let mut engine = Engine::new(program, sample_rate, base_dir)?;
-    let mut out =
-        Vec::with_capacity(((program.duration_seconds() + 1.0) * sample_rate as f64) as usize);
-    let mut block = [0.0; 512];
+    let mut out = Vec::with_capacity(
+        ((program.duration_seconds() + 3.0) * sample_rate as f64) as usize * CHANNELS,
+    );
+    let mut block = [0.0; 512 * CHANNELS];
     while !engine.is_finished() {
         engine.process(&mut block);
         out.extend_from_slice(&block);
     }
+    // Cola: las repeticiones del delay y la reverb siguen sonando cuando la
+    // última voz ya se apagó.
+    let latency = engine.latency() * CHANNELS;
+    let mut silence = vec![0.0; 3 * sample_rate as usize * CHANNELS + latency];
+    engine.process(&mut silence);
+    out.extend_from_slice(&silence);
+
+    // El limitador escucha por delante, así que su salida va retrasada. Al
+    // arrancar con la línea de retardo en silencio, descartar esas primeras
+    // muestras devuelve el audio a su sitio: cada evento vuelve a caer en su
+    // muestra exacta y el vídeo sigue cuadrando al frame.
+    out.drain(..latency.min(out.len()));
+
+    // La pieza dura al menos lo que declara `length`; lo que se recorta es
+    // solo el silencio posterior a la cola.
+    let declared = (program.duration_seconds() * sample_rate as f64) as usize * CHANNELS;
+    let min_len = declared.min(out.len());
+    trim_silence(&mut out, min_len);
     Ok(out)
 }
 
@@ -164,4 +267,17 @@ fn resample(x: &[f32], ratio: f64) -> Vec<f32> {
             a + (b - a) * frac
         })
         .collect()
+}
+
+/// Recorta el silencio del final, para que la cola dure lo que suena y no un
+/// tiempo fijo. Nunca baja de `min_len`.
+fn trim_silence(out: &mut Vec<f32>, min_len: usize) {
+    // Por debajo de un bit de 16 bits no queda nada audible en el WAV.
+    const FLOOR: f32 = 1.0 / 32_768.0;
+    let last = out
+        .iter()
+        .rposition(|v| v.abs() > FLOOR)
+        .map_or(0, |i| i + 1);
+    let keep = last.max(min_len).next_multiple_of(CHANNELS).min(out.len());
+    out.truncate(keep);
 }

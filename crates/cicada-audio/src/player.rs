@@ -11,7 +11,10 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 
 use crate::AudioError;
+use crate::fx::CHANNELS;
 
+/// `buffer` viene intercalado (izquierda, derecha) y `pos` cuenta muestras
+/// sueltas dentro de él, no frames.
 struct State {
     buffer: Arc<[f32]>,
     pos: usize,
@@ -75,6 +78,10 @@ impl Player {
 
     /// Cambia lo que suena sin mover la posición: recarga en caliente.
     pub fn set_buffer(&self, buffer: Arc<[f32]>) {
+        debug_assert!(
+            buffer.len().is_multiple_of(CHANNELS),
+            "el búfer debe ser estéreo"
+        );
         self.with(|s| {
             s.pos = s.pos.min(buffer.len());
             s.buffer = buffer;
@@ -100,16 +107,23 @@ impl Player {
 
     pub fn seek(&self, seconds: f64) {
         let sr = self.sample_rate as f64;
-        self.with(|s| s.pos = ((seconds.max(0.0) * sr) as usize).min(s.buffer.len()));
+        self.with(|s| {
+            let frame = (seconds.max(0.0) * sr) as usize;
+            s.pos = (frame * CHANNELS).min(s.buffer.len() - s.buffer.len() % CHANNELS);
+        });
     }
 
     /// Posición actual en segundos.
     pub fn position(&self) -> f64 {
-        self.with(|s| s.pos) as f64 / self.sample_rate as f64
+        self.seconds(self.with(|s| s.pos))
     }
 
     pub fn duration(&self) -> f64 {
-        self.with(|s| s.buffer.len()) as f64 / self.sample_rate as f64
+        self.seconds(self.with(|s| s.buffer.len()))
+    }
+
+    fn seconds(&self, samples: usize) -> f64 {
+        samples as f64 / CHANNELS as f64 / self.sample_rate as f64
     }
 }
 
@@ -131,14 +145,22 @@ fn build<T: SizedSample + FromSample<f32>>(
                     return;
                 };
                 for frame in data.chunks_mut(channels) {
-                    let v = if s.playing && s.pos < s.buffer.len() {
-                        s.pos += 1;
-                        s.buffer[s.pos - 1]
+                    let stereo = if s.playing && s.pos + CHANNELS <= s.buffer.len() {
+                        s.pos += CHANNELS;
+                        [s.buffer[s.pos - CHANNELS], s.buffer[s.pos - CHANNELS + 1]]
                     } else {
                         s.playing = false;
-                        0.0
+                        [0.0; CHANNELS]
                     };
-                    frame.fill(T::from_sample(v));
+                    // Si el dispositivo es mono se suman; si tiene más de dos
+                    // canales, los de más repiten el par estéreo.
+                    if channels == 1 {
+                        frame[0] = T::from_sample((stereo[0] + stereo[1]) * 0.5);
+                    } else {
+                        for (i, out) in frame.iter_mut().enumerate() {
+                            *out = T::from_sample(stereo[i % CHANNELS]);
+                        }
+                    }
                 }
             },
             |e| eprintln!("error de audio: {e}"),

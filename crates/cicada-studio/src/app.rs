@@ -607,21 +607,40 @@ impl Studio {
                     .fill(theme::EDITOR_BG)
                     .inner_margin(10.0)
                     .corner_radius(6.0);
+                let id = egui::Id::new("code-edit");
+                // Línea del cursor, para resaltar su número en el margen.
+                let current = egui::TextEdit::load_state(ui.ctx(), id)
+                    .and_then(|state| state.cursor.char_range())
+                    .map(|range| {
+                        let at = range.primary.index.0.min(self.source.chars().count());
+                        self.source.chars().take(at).filter(|c| *c == '\n').count() + 1
+                    });
                 frame.show(ui, |ui| {
                     egui::ScrollArea::both()
                         .id_salt("code")
                         .max_height(editor_height - 20.0)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            let edit = egui::TextEdit::multiline(&mut self.source)
-                                .code_editor()
-                                .frame(egui::Frame::new())
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(30)
-                                .layouter(&mut layouter);
-                            if ui.add(edit).changed() {
-                                self.edited_at = now;
-                            }
+                            ui.horizontal_top(|ui| {
+                                ui.spacing_mut().item_spacing.x = 12.0;
+                                let job = editor::gutter_job(
+                                    &self.source,
+                                    font.clone(),
+                                    &self.diagnostics,
+                                    current,
+                                );
+                                ui.add(egui::Label::new(job).selectable(false));
+                                let edit = egui::TextEdit::multiline(&mut self.source)
+                                    .id(id)
+                                    .code_editor()
+                                    .frame(egui::Frame::new())
+                                    .desired_width(f32::INFINITY)
+                                    .desired_rows(30)
+                                    .layouter(&mut layouter);
+                                if ui.add(edit).changed() {
+                                    self.edited_at = now;
+                                }
+                            });
                         });
                 });
 
@@ -843,6 +862,11 @@ impl Studio {
                                 ui.label(RichText::new(&track.name).family(theme::bold()));
                             });
                             ui.label(RichText::new(track.sound.describe()).monospace().color(DIM));
+                            ui.label(
+                                RichText::new(track.fx.describe())
+                                    .monospace()
+                                    .color(theme::GUTTER),
+                            );
                             let sections: Vec<&str> = program
                                 .sections
                                 .iter()

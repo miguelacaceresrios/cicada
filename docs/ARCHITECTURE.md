@@ -63,11 +63,18 @@ segundos se multiplican por `seconds_per_cycle`.
 ## Audio
 
 ```text
-eventos ─► voces programadas por muestra ─► mezcla ─► tanh (master) ─► render
-                                                                          ├── WAV
-                                                                          └── Player (CPAL)
+                        ┌── lpf/hpf ──┬─────────────► master ─► limitador ─► estéreo
+eventos ─► voces ─pan──►┤ (por pista)  ├── envío ─► delay ──┤                   ├── WAV
+                        └──────────────┴── envío ─► reverb ─┘                   └── Player (CPAL)
 ```
 
+Los filtros y los envíos van en el bus de cada pista, no en cada voz: filtrar
+golpe a golpe no tendría sentido musical, y una cola de delay por voz se
+cortaría al apagarse la nota. Una pista sin efectos salta el bus y va directa
+al master.
+
+- La salida es **estéreo intercalado** (izquierda, derecha, izquierda…). Las
+  voces son mono y se reparten con potencia constante según su `pan`.
 - La pieza se renderiza entera antes de sonar: un minuto de música tarda menos
   de un segundo. El `Player` solo copia muestras al dispositivo, así que lo
   que suena es exactamente lo que se exporta. Además, pausar, saltar a otro
@@ -78,7 +85,29 @@ eventos ─► voces programadas por muestra ─► mezcla ─► tanh (master) 
 - Cada evento arranca en su **muestra exacta** (hay un test para ello), no al
   principio del bloque.
 - El ruido de snare y hat es un xorshift sembrado por evento, así que es
-  determinista.
+  determinista. La reverb, el delay y el limitador tampoco guardan estado
+  entre renders.
+
+### El master
+
+El master no recorta: lleva un **limitador con escucha previa** de 4 ms, que
+baja el volumen *antes* de que llegue el pico. Así la mezcla puede ir tan alta
+como pide el género sin el chasquido de un recorte duro. Detrás queda un
+recorte suave que solo actúa por encima de 0.9, como red de seguridad.
+
+Esos 4 ms de escucha previa retrasarían todo el audio, así que `render`
+descarta las primeras muestras: cada evento vuelve a caer en su muestra exacta
+y el vídeo sigue cuadrando al frame (hay un test que lo comprueba).
+
+El WAV se escribe con ruido de dispersión triangular al pasar a 16 bits, que
+reparte el error de redondeo en vez de dejarlo pegado a la señal; sin él las
+colas largas de reverb se apagan con un zumbido áspero.
+
+La cola del render dura lo que suena: se recorta el silencio del final, pero
+nunca por debajo de lo que declara `length`.
+
+Los sonidos integrados están nivelados entre sí para que `gain 1` signifique
+lo mismo en todos y el kick quede como el elemento más fuerte.
 
 ## Visuales
 
@@ -168,6 +197,9 @@ guarda una captura y cierra; así se generó `docs/studio.png`.
 | Lenguaje completo y errores con su posición | `core/tests/language.rs` |
 | Consulta por partes = consulta entera | `query_is_the_union_of_its_parts` |
 | Mismo código ⇒ mismas muestras | `audio/tests/render.rs` |
+| La salida es estéreo y el `pan` la abre | `output_is_stereo` |
+| El master nunca recorta, ni con todo a tope | `master_never_clips` |
+| Filtros, delay y reverb cambian el sonido | `filters_and_sends_change_the_sound` |
 | Eventos en su muestra exacta | `events_land_on_the_exact_sample` |
 | Nunca más de 3 destellos por segundo | `flashes_never_exceed_three_per_second` |
 | Impulsos, fundidos y pasos activos | `visual/timeline.rs` |

@@ -138,7 +138,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             println!(
                 "✓ {} ({})",
                 out.display(),
-                clock(samples.len() as f64 / sample_rate as f64)
+                clock(duration(samples.len(), sample_rate))
             );
         }
         Command::Play { .. } => {
@@ -212,7 +212,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             println!(
                 "✓ {} ({}, en {:.0} s)",
                 out.display(),
-                clock(audio.len() as f64 / SAMPLE_RATE as f64),
+                clock(duration(audio.len(), SAMPLE_RATE)),
                 started.elapsed().as_secs_f64()
             );
         }
@@ -290,6 +290,11 @@ fn write_png(path: &Path, rgba: &[u8], width: u32, height: u32) -> Result<()> {
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(rgba)?;
     Ok(())
+}
+
+/// Duración de un render estéreo intercalado, en segundos.
+fn duration(samples: usize, sample_rate: u32) -> f64 {
+    samples as f64 / cicada_audio::CHANNELS as f64 / sample_rate as f64
 }
 
 fn clock(seconds: f64) -> String {

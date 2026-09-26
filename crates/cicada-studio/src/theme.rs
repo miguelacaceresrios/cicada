@@ -8,6 +8,9 @@ use eframe::egui::{self, Color32, FontData, FontDefinitions, FontFamily};
 
 pub const ACCENT: Color32 = Color32::from_rgb(255, 46, 36);
 pub const DIM: Color32 = Color32::from_rgb(140, 140, 148);
+pub const TEXT: Color32 = Color32::from_rgb(237, 232, 228);
+/// Los números de línea van apagados para que no compitan con el código.
+pub const GUTTER: Color32 = Color32::from_rgb(88, 84, 88);
 pub const OK: Color32 = Color32::from_rgb(120, 210, 140);
 pub const BG: Color32 = Color32::from_rgb(14, 12, 13);
 pub const EDITOR_BG: Color32 = Color32::from_rgb(9, 8, 9);

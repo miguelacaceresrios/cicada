@@ -13,7 +13,16 @@ use crate::lexer::{Line, TokKind, Token, lex};
 use crate::note::parse_note;
 
 pub const SETTINGS: &[&str] = &["bpm", "seed", "beats", "length"];
-pub const MODIFIERS: &[&str] = &["gain", "dist", "prob"];
+/// Modificadores de voz: valen tanto en la declaración de un sonido como en
+/// una línea de patrón, donde afectan solo a esa línea.
+pub const VOICE_MODIFIERS: &[&str] = &["gain", "dist", "pan", "prob"];
+/// Modificadores de efectos: solo en la declaración de la pista, porque
+/// actúan sobre toda su cadena y no sobre un golpe suelto.
+pub const FX_MODIFIERS: &[&str] = &["lpf", "hpf", "delay", "reverb"];
+
+pub fn is_modifier(name: &str) -> bool {
+    VOICE_MODIFIERS.contains(&name) || FX_MODIFIERS.contains(&name)
+}
 
 const PATTERN_HELP: &str = "golpes: x X ? .  ·  notas: C1 F#2 Bb0  ·  silencio: ~";
 
@@ -193,7 +202,7 @@ impl Parser {
             "snare" => Source::Snare,
             "hat" => Source::Hat,
             "synth" => match toks.get(3).map(|t| (&t.kind, t.pos)) {
-                Some((TokKind::Word(w), pos)) if !MODIFIERS.contains(&w.as_str()) => {
+                Some((TokKind::Word(w), pos)) if !is_modifier(w) => {
                     rest = 4;
                     let Some(wave) = Wave::from_name(w) else {
                         self.error_help(
@@ -246,7 +255,7 @@ impl Parser {
         let mut i = 0;
         while i < toks.len() {
             let name = match &toks[i].kind {
-                TokKind::Word(w) if MODIFIERS.contains(&w.as_str()) => Spanned {
+                TokKind::Word(w) if is_modifier(w) => Spanned {
                     value: w.clone(),
                     pos: toks[i].pos,
                 },
@@ -254,7 +263,7 @@ impl Parser {
                     self.error_help(
                         toks[i].pos,
                         "se esperaba un modificador",
-                        "modificadores: gain, dist, prob",
+                        "sonido: gain, dist, pan, prob · efectos: lpf, hpf, delay, reverb",
                     );
                     return None;
                 }
@@ -270,7 +279,7 @@ impl Parser {
     fn pattern(&mut self, track: Spanned<String>, toks: &[Token]) -> P<PatternLine> {
         let split = toks
             .iter()
-            .position(|t| matches!(&t.kind, TokKind::Word(w) if MODIFIERS.contains(&w.as_str())))
+            .position(|t| matches!(&t.kind, TokKind::Word(w) if is_modifier(w)))
             .unwrap_or(toks.len());
         if split == 0 {
             self.error_help(

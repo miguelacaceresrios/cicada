@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::ast::{self, Atom, File, Item, PatternLine, Source, Step};
 use crate::diag::{Diagnostic, Pos, Spanned};
 use crate::pattern::flatten;
-use crate::program::{Layer, Params, Program, Section, SectionKind, Sound, Track};
+use crate::program::{Fx, Layer, Params, Program, Section, SectionKind, Sound, Track};
 
 pub fn analyze(file: &File) -> Result<Program, Vec<Diagnostic>> {
     Analyzer::default().run(file)
@@ -156,11 +156,13 @@ impl Analyzer {
             Source::Sample(path) => Sound::Sample(path.clone()),
         };
         let mut params = Params::default();
-        self.apply_mods(&decl.mods, &mut params);
+        let mut fx = Fx::NONE;
+        self.apply_mods(&decl.mods, &mut params, Some(&mut fx));
         self.add_track(Track {
             name: name.clone(),
             sound,
             params,
+            fx,
         });
     }
 
@@ -193,25 +195,82 @@ impl Analyzer {
             name: name.value.clone(),
             sound,
             params: Params::default(),
+            fx: Fx::NONE,
         }))
     }
 
-    fn apply_mods(&mut self, mods: &[ast::Modifier], params: &mut Params) {
+    /// Reparte los modificadores. `fx` es `None` en una línea de patrón: allí
+    /// los efectos no valen, porque actúan sobre toda la pista.
+    fn apply_mods(&mut self, mods: &[ast::Modifier], params: &mut Params, mut fx: Option<&mut Fx>) {
         for m in mods {
+            let name = m.name.value.as_str();
             let value = m.value.value;
-            let (slot, max) = match m.name.value.as_str() {
-                "gain" => (&mut params.gain, 4.0),
-                "dist" => (&mut params.dist, 1.0),
-                _ => (&mut params.prob, 1.0),
+            let Some(fx) = fx.as_deref_mut() else {
+                if crate::parser::FX_MODIFIERS.contains(&name) {
+                    self.error_help(
+                        m.name.pos,
+                        format!("`{name}` se aplica a toda la pista, no a una línea"),
+                        format!("ponlo donde declaras el sonido, por ejemplo: `bass = synth saw {name} {value}`"),
+                    );
+                    continue;
+                }
+                self.voice_mod(m, params);
+                continue;
             };
-            if (0.0..=max).contains(&value) {
-                *slot = value as f32;
-            } else {
-                self.error(
-                    m.value.pos,
-                    format!("`{}` debe estar entre 0 y {max}", m.name.value),
-                );
+            match name {
+                "lpf" | "hpf" => {
+                    if (20.0..=20_000.0).contains(&value) {
+                        let slot = if name == "lpf" {
+                            &mut fx.lpf
+                        } else {
+                            &mut fx.hpf
+                        };
+                        *slot = Some(value as f32);
+                    } else {
+                        self.error_help(
+                            m.value.pos,
+                            format!("`{name}` debe estar entre 20 y 20000"),
+                            "se indica en hercios, por ejemplo: lpf 800",
+                        );
+                    }
+                }
+                "delay" | "reverb" => {
+                    if (0.0..=1.0).contains(&value) {
+                        let slot = if name == "delay" {
+                            &mut fx.delay
+                        } else {
+                            &mut fx.reverb
+                        };
+                        *slot = value as f32;
+                    } else {
+                        self.error(m.value.pos, format!("`{name}` debe estar entre 0 y 1"));
+                    }
+                }
+                _ => self.voice_mod(m, params),
             }
+        }
+    }
+
+    fn voice_mod(&mut self, m: &ast::Modifier, params: &mut Params) {
+        let value = m.value.value;
+        let (slot, range) = match m.name.value.as_str() {
+            "gain" => (&mut params.gain, 0.0..=4.0),
+            "dist" => (&mut params.dist, 0.0..=1.0),
+            "pan" => (&mut params.pan, -1.0..=1.0),
+            _ => (&mut params.prob, 0.0..=1.0),
+        };
+        if range.contains(&value) {
+            *slot = value as f32;
+        } else {
+            self.error(
+                m.value.pos,
+                format!(
+                    "`{}` debe estar entre {} y {}",
+                    m.name.value,
+                    range.start(),
+                    range.end()
+                ),
+            );
         }
     }
 
@@ -247,7 +306,7 @@ impl Analyzer {
         }
 
         let mut params = self.tracks[track].params;
-        self.apply_mods(&line.mods, &mut params);
+        self.apply_mods(&line.mods, &mut params, None);
         Some(Layer {
             track,
             slots: flatten(&line.steps),

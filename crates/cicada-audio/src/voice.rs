@@ -37,19 +37,29 @@ pub struct Voice {
     t: u32,
     sr: f32,
     amp: f32,
+    pan: f32,
     drive: f32,
+    /// Paso alto después de la distorsión. Saturar un grave genera mucha
+    /// energía por debajo de la fundamental: quitarla es lo que convierte un
+    /// zumbido en el golpe seco del kick gabber.
+    post_hp: Option<(f32, f32)>,
     noise: u64,
     done: bool,
 }
 
 impl Voice {
-    pub fn new(kind: Kind, amp: f32, dist: f32, sr: f32, noise_seed: u64) -> Self {
+    pub fn new(kind: Kind, amp: f32, pan: f32, dist: f32, sr: f32, noise_seed: u64) -> Self {
+        let post_hp = matches!(kind, Kind::Kick { .. }).then_some((36.0, 0.0));
+        let amp = amp * base_level(&kind);
         Voice {
             kind,
             t: 0,
             sr,
             amp,
-            drive: 1.0 + dist * 24.0,
+            pan,
+            // La curva no es lineal: los primeros pasos de `dist` ya se notan.
+            drive: 1.0 + dist.powf(0.7) * 28.0,
+            post_hp,
             noise: noise_seed | 1,
             done: false,
         }
@@ -66,6 +76,10 @@ impl Voice {
 
     pub fn is_done(&self) -> bool {
         self.done
+    }
+
+    pub fn pan(&self) -> f32 {
+        self.pan
     }
 
     /// Ruido blanco determinista (xorshift), sembrado por evento.
@@ -87,9 +101,17 @@ impl Voice {
 
         let (raw, alive) = match &mut self.kind {
             Kind::Kick { phase } => {
-                let freq = 48.0 + 380.0 * (-t / 0.028).exp();
+                // Dos barridos superpuestos: uno muy rápido que da el golpe
+                // seco del ataque y otro lento que lleva el tono al grave.
+                let freq = 44.0 + 80.0 * (-t / 0.085).exp() + 620.0 * (-t / 0.011).exp();
                 *phase = (*phase + freq / sr).fract();
-                ((*phase * TAU).sin() * (-t / 0.22).exp(), t < 0.6)
+                let body = (*phase * TAU).sin();
+                // Chasquido de los primeros milisegundos: es lo que hace que
+                // el kick se oiga por encima de la mezcla.
+                let click = n * (-t / 0.0018).exp() * 0.55;
+                // Ataque de 1 ms para que el primer ciclo no suene a recorte.
+                let env = (-t / 0.24).exp() * (1.0 - (-t / 0.001).exp());
+                ((body + click) * env, t < 0.7)
             }
             Kind::Snare { phase, lp } => {
                 *phase = (*phase + 190.0 / sr).fract();
@@ -135,12 +157,34 @@ impl Voice {
         };
 
         self.done = !alive;
-        let shaped = if self.drive > 1.0 {
+        let mut out = if self.drive > 1.0 {
             (raw * self.drive).tanh() / self.drive.tanh()
         } else {
             raw
         };
-        shaped * self.amp
+        if let Some((cutoff, lp)) = &mut self.post_hp {
+            let (lp_new, hp) = high_pass(*lp, out, *cutoff, sr);
+            *lp = lp_new;
+            out = hp;
+        }
+        out * self.amp
+    }
+}
+
+/// Nivel de cada sonido para que `gain 1` signifique lo mismo en todos.
+///
+/// Sin esto, cada voz sale al nivel que le toque por su síntesis: el snare
+/// pegaba más fuerte que el kick y los synths quedaban enterrados, así que
+/// `gain` no servía para comparar pistas. Los valores dejan el kick como
+/// elemento más fuerte, que es lo que pide el género.
+fn base_level(kind: &Kind) -> f32 {
+    match kind {
+        Kind::Kick { .. } => 1.42,
+        Kind::Snare { .. } => 0.79,
+        Kind::Hat { .. } => 1.13,
+        Kind::Synth { .. } => 1.96,
+        // Un sample suena como está grabado: normalizarlo sería falsearlo.
+        Kind::Sample { .. } => 1.0,
     }
 }
 

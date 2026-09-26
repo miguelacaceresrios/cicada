@@ -15,6 +15,8 @@ const TRANSITION: f64 = 0.4;
 /// Cuánto hacia atrás se miran los eventos para calcular impulsos.
 const LOOKBACK: f64 = 1.0;
 const LEVEL_BLOCK: usize = 512;
+/// Canales del audio que entra: estéreo intercalado.
+const CHANNELS: usize = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
@@ -115,7 +117,8 @@ pub struct Timeline {
 }
 
 impl Timeline {
-    /// `audio` es el render mono de la pieza; su duración manda sobre la del vídeo.
+    /// `audio` es el render estéreo intercalado de la pieza; su duración
+    /// manda sobre la del vídeo.
     pub fn new(program: &Program, audio: &[f32], sample_rate: u32) -> Timeline {
         let spc = program.seconds_per_cycle();
         let seconds = |r: Rational| r.to_f64() * spc;
@@ -150,7 +153,7 @@ impl Timeline {
         // Nivel de la mezcla con una media móvil de ~0,3 s: sigue la
         // intensidad de la sección sin latir con cada golpe.
         let blocks: Vec<f32> = audio
-            .chunks(LEVEL_BLOCK)
+            .chunks(LEVEL_BLOCK * CHANNELS)
             .map(|b| (b.iter().map(|v| v * v).sum::<f32>() / b.len() as f32).sqrt())
             .collect();
         let window = (0.3 * sample_rate as f64 / LEVEL_BLOCK as f64) as usize;
@@ -167,7 +170,7 @@ impl Timeline {
             spans,
             level,
             level_rate: sample_rate as f64 / LEVEL_BLOCK as f64,
-            duration: audio.len() as f64 / sample_rate as f64,
+            duration: audio.len() as f64 / CHANNELS as f64 / sample_rate as f64,
             seconds_per_cycle: spc,
         }
     }

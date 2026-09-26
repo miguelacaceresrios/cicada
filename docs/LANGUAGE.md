@@ -8,7 +8,7 @@ aquí queda fuera de la 0.1 a propósito.
 bpm 200
 seed 2026
 
-bass = synth saw gain 0.7          # declarar un sonido
+bass = synth saw gain 0.7 lpf 900  # declarar un sonido, con sus efectos
 hat  x?x?x?x? gain 0.5             # fuera de secciones: suena en toda la pieza
 
 intro 8:                           # sección de 8 ciclos
@@ -56,7 +56,7 @@ declararlo.
 
 | Sonido | Tipo de patrón | Descripción |
 | --- | --- | --- |
-| `kick` | golpes | Seno con barrido de pitch; con `dist` se vuelve el kick gabber |
+| `kick` | golpes | Dos barridos de pitch, chasquido de ataque y paso alto tras la distorsión: el kick gabber |
 | `snare` | golpes | Tono corto con ruido filtrado |
 | `hat` | golpes | Ruido agudo con envolvente corta |
 | `synth saw` / `square` / `sine` | notas | Oscilador sin aliasing (PolyBLEP) con envolvente |
@@ -78,14 +78,48 @@ momento de la pieza están.
 
 ### Modificadores
 
-Van al final de una declaración de sonido (valor por defecto de la pista) o
-de un patrón (solo para esa línea).
+Hay dos familias, y se distinguen por dónde pueden ir.
+
+**De sonido**: valen tanto en la declaración de la pista (donde fijan el valor
+por defecto) como en una línea de patrón (donde afectan solo a esa línea).
 
 | Modificador | Rango | Por defecto | Efecto |
 | --- | --- | --- | --- |
 | `gain` | 0 a 4 | 1 | Volumen |
-| `dist` | 0 a 1 | 0 | Saturación (`tanh`) |
+| `dist` | 0 a 1 | 0 | Saturación |
+| `pan` | -1 a 1 | 0 | Posición estéreo: -1 izquierda, 1 derecha |
 | `prob` | 0 a 1 | 0.5 | Probabilidad de los golpes `?` |
+
+**De efectos**: solo en la declaración de la pista, porque actúan sobre la
+suma de sus voces y no sobre un golpe suelto.
+
+| Modificador | Rango | Efecto |
+| --- | --- | --- |
+| `lpf` | 20 a 20000 Hz | Paso bajo: quita agudos |
+| `hpf` | 20 a 20000 Hz | Paso alto: quita graves y hace sitio al kick |
+| `delay` | 0 a 1 | Cuánto se manda al eco ping-pong, sincronizado al tempo |
+| `reverb` | 0 a 1 | Cuánto se manda a la reverb |
+
+```text
+bass = synth saw lpf 900 gain 0.5
+lead = synth square hpf 400 delay 0.3 reverb 0.2
+
+drop 16:
+  bass C1 C1 G0 C1 dist 0.3     # dist y pan sí valen aquí
+  lead C4 G4 pan 0.4
+```
+
+Poner un efecto en una línea de patrón es un error, y el mensaje dice dónde
+va:
+
+```text
+error: `reverb` se aplica a toda la pista, no a una línea
+ --> track.cicada:5:12
+  = ayuda: ponlo donde declaras el sonido, por ejemplo: `bass = synth saw reverb 0.5`
+```
+
+Todos los sonidos integrados están nivelados para que `gain 1` suene
+parecido en todos, con el kick como elemento más fuerte.
 
 ## Patrones
 
@@ -137,5 +171,6 @@ error: `z` no es válido en un patrón
 
 - Transformaciones: `rev`, `fast`, `slow`, `every`, `euclid(3,8)`
 - Automatización de parámetros dentro de una sección
-- Cadenas de FX por pista (filtros, delay, reverb, bitcrush)
+- Más efectos: bitcrush, chorus, filtro con resonancia
+- Metadatos de la pieza (`title`, `artist`) para la cabecera del vídeo
 - Bloque `visual` para asociar eventos a efectos (ver el roadmap)

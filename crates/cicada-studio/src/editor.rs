@@ -71,3 +71,35 @@ pub fn layout_job(text: &str, font: FontId, active: &[Active], errors: &[Diagnos
     }
     job
 }
+
+/// Columna de números de línea. Se dibuja como un solo bloque de texto con la
+/// misma fuente que el código, así las dos columnas quedan alineadas sin
+/// calcular alturas a mano. Las líneas con error salen en rojo.
+pub fn gutter_job(
+    text: &str,
+    font: FontId,
+    errors: &[Diagnostic],
+    current: Option<usize>,
+) -> LayoutJob {
+    let total = text.lines().count().max(1);
+    let width = total.to_string().len();
+    let mut job = LayoutJob::default();
+    for line in 1..=total {
+        let failed = errors.iter().any(|d| d.pos.line == line);
+        let color = match (failed, current == Some(line)) {
+            (true, _) => ACCENT,
+            (_, true) => theme::TEXT,
+            _ => theme::GUTTER,
+        };
+        job.append(
+            &format!("{line:>width$}{}", if line == total { "" } else { "\n" }),
+            0.0,
+            TextFormat {
+                font_id: font.clone(),
+                color,
+                ..Default::default()
+            },
+        );
+    }
+    job
+}

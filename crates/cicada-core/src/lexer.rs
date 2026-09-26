@@ -86,7 +86,12 @@ pub fn lex(src: &str) -> (Vec<Line>, Vec<Diagnostic>) {
                     j += 1;
                     TokKind::Str(chars[start + 1..j - 1].iter().collect())
                 }
-                c if c.is_ascii_digit() => {
+                // El signo solo abre un número: `pan -1`. En cualquier otro
+                // sitio no significa nada en CICADA.
+                c if c.is_ascii_digit()
+                    || (c == '-' && chars.get(j + 1).is_some_and(char::is_ascii_digit)) =>
+                {
+                    j += usize::from(c == '-');
                     while j < chars.len() && (chars[j].is_ascii_digit() || chars[j] == '.') {
                         j += 1;
                     }
@@ -169,6 +174,22 @@ mod tests {
                 TokKind::Number(4.0),
             ]
         );
+    }
+
+    #[test]
+    fn negative_numbers() {
+        assert_eq!(
+            kinds("hat x pan -0.5"),
+            vec![
+                TokKind::Word("hat".into()),
+                TokKind::Word("x".into()),
+                TokKind::Word("pan".into()),
+                TokKind::Number(-0.5),
+            ]
+        );
+        // Un guión suelto sigue siendo un error, con su posición.
+        let (_, diags) = lex("hat x pan -");
+        assert_eq!(diags[0].message, "carácter inesperado `-`");
     }
 
     #[test]
