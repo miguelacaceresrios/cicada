@@ -1,0 +1,19 @@
+[package]
+name = "cicada-cli"
+description = "Línea de comandos de CICADA."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "cicada"
+path = "src/main.rs"
+
+[dependencies]
+cicada-core.workspace = true
+cicada-audio.workspace = true
+cicada-visual.workspace = true
+png.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true

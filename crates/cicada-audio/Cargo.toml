@@ -1,0 +1,15 @@
+[package]
+name = "cicada-audio"
+description = "Síntesis, render offline y reproducción en tiempo real para CICADA."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["realtime"]
+realtime = ["dep:cpal"]
+
+[dependencies]
+cicada-core.workspace = true
+hound.workspace = true
+cpal = { workspace = true, optional = true }

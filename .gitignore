@@ -1,0 +1,7 @@
+/target
+*.wav
+*.mp4
+*.png
+!**/samples/*.wav
+!docs/**/*.png
+!crates/cicada-studio/assets/*.png

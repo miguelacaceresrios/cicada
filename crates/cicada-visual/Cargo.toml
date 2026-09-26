@@ -1,0 +1,13 @@
+[package]
+name = "cicada-visual"
+description = "Motor visual de CICADA: la IR convertida en frames y vídeo."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cicada-core.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+bytemuck.workspace = true
+fontdue.workspace = true

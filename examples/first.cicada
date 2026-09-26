@@ -1,0 +1,11 @@
+# Primera pieza: un loop gabber mínimo, sin secciones.
+bpm 195
+seed 7
+length 16
+
+bass = synth saw gain 0.8
+
+kick   X.x.x.x. dist 0.7
+snare  ....x...
+hat    x?x?x?x? gain 0.6
+bass   C1 C1 G0 C1

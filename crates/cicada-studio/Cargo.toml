@@ -1,0 +1,21 @@
+[package]
+name = "cicada-studio"
+description = "CICADA Studio: editor, visuales en vivo y exportación."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "cicada-studio"
+path = "src/main.rs"
+
+[dependencies]
+cicada-core.workspace = true
+cicada-audio.workspace = true
+cicada-visual.workspace = true
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "accesskit"] }
+rfd = "0.17"
+png.workspace = true
+
+[build-dependencies]
+winresource = "0.1"
