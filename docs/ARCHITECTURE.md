@@ -155,6 +155,44 @@ segundo tiene 2 transiciones grandes, por debajo del umbral de 3 de WCAG 2.3.1.
 Es una aproximación: no sustituye a un analizador como PEAT y no evalúa la
 regla específica de destellos rojos saturados.
 
+## Rendimiento
+
+Medido en un Intel i5-1135G7 con gráficos Iris Xe, sobre
+`examples/hakken.cicada` (64 s, 6 pistas).
+
+| Tarea | Antes | Ahora |
+| --- | --- | --- |
+| Render de audio | 2173 ms | **1146 ms** |
+| Render de audio, pieza de solo kicks | 2231 ms | **839 ms** |
+| Frames a 1080p60 con el código en pantalla | 34,5 fps | **80,4 fps** |
+| Exportar el vídeo entero | 142 s | **104 s** |
+
+Lo que había detrás:
+
+- **Números subnormales.** Las envolventes, la reverb y el delay tienden a
+  cero, y al cruzar el umbral de lo subnormal cada operación pasa a costar
+  decenas de ciclos. Poner a cero por debajo de `1e-20` fue el mayor cambio
+  de todos: un pasaje callado salía más caro de calcular que un drop.
+- **Constantes recalculadas.** El coeficiente de cada filtro y el `tanh` de
+  la distorsión salían por muestra, y son fijos.
+- **El resto entero de los índices circulares.** Dos docenas de divisiones
+  por muestra entre la reverb y el delay; una comparación hace lo mismo.
+- **Efectos que nadie usa.** Si ninguna pista manda a la reverb, no se
+  procesa.
+- **Mezcla por filas y en punto fijo.** El texto sobre el vídeo se componía
+  píxel a píxel, con cuatro comprobaciones de límites y aritmética en coma
+  flotante por punto.
+- **Ruido con `sin`.** El hash del shader usaba una transcendental, y `fbm`
+  lo llama veinte veces por píxel.
+- **Dibujar y codificar en paralelo.** Antes, la GPU esperaba a que FFmpeg
+  tragara cada frame.
+
+Para repetir las medidas:
+
+```sh
+cargo test -p cicada-visual --release --test bench -- --ignored --nocapture
+```
+
 ## Repositorio
 
 ```text

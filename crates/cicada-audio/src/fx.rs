@@ -6,6 +6,18 @@ use std::f32::consts::PI;
 
 pub type Frame = [f32; 2];
 
+/// Umbral por debajo del cual una muestra se pone a cero.
+///
+/// Las colas de la reverb y del delay tienden a cero durante los silencios y
+/// entran en el rango subnormal, donde cada operación cuesta decenas de
+/// ciclos: un pasaje callado salía más caro de calcular que un drop.
+const DENORMAL: f32 = 1e-20;
+
+#[inline]
+fn flush(x: f32) -> f32 {
+    if x.abs() < DENORMAL { 0.0 } else { x }
+}
+
 pub const CHANNELS: usize = 2;
 
 pub fn mix(a: Frame, b: Frame, amount: f32) -> Frame {
@@ -17,6 +29,14 @@ pub fn mix(a: Frame, b: Frame, amount: f32) -> Frame {
 pub fn pan(sample: f32, pan: f32) -> Frame {
     let angle = (pan.clamp(-1.0, 1.0) + 1.0) * PI / 4.0;
     [sample * angle.cos(), sample * angle.sin()]
+}
+
+/// Avanza un índice circular. El resto entero cuesta una división, y aquí se
+/// hacen dos docenas por muestra entre la reverb y el delay.
+#[inline]
+fn wrap(index: usize, len: usize) -> usize {
+    let next = index + 1;
+    if next == len { 0 } else { next }
 }
 
 /// Filtro de dos polos con transformada que preserva la topología (Zavalishin).
@@ -56,8 +76,8 @@ impl Svf {
         let v3 = x - self.ic2;
         let v1 = c.a1 * self.ic1 + c.a2 * v3;
         let v2 = self.ic2 + c.a2 * self.ic1 + c.a3 * v3;
-        self.ic1 = 2.0 * v1 - self.ic1;
-        self.ic2 = 2.0 * v2 - self.ic2;
+        self.ic1 = flush(2.0 * v1 - self.ic1);
+        self.ic2 = flush(2.0 * v2 - self.ic2);
         (v2, x - c.k * v1 - v2)
     }
 
@@ -125,10 +145,10 @@ impl Delay {
         ];
         // El canal cruzado es lo que hace el ping-pong.
         self.buffer[self.index] = [
-            input[0] + damped[1] * self.feedback,
-            input[1] + damped[0] * self.feedback,
+            flush(input[0] + damped[1] * self.feedback),
+            flush(input[1] + damped[0] * self.feedback),
         ];
-        self.index = (self.index + 1) % self.step;
+        self.index = wrap(self.index, self.step);
         out
     }
 }
@@ -195,9 +215,9 @@ impl Comb {
 
     fn run(&mut self, x: f32) -> f32 {
         let out = self.buffer[self.index];
-        self.store = out * (1.0 - DAMP) + self.store * DAMP;
-        self.buffer[self.index] = x + self.store * ROOM;
-        self.index = (self.index + 1) % self.buffer.len();
+        self.store = flush(out * (1.0 - DAMP) + self.store * DAMP);
+        self.buffer[self.index] = flush(x + self.store * ROOM);
+        self.index = wrap(self.index, self.buffer.len());
         out
     }
 }
@@ -217,8 +237,8 @@ impl Allpass {
 
     fn run(&mut self, x: f32) -> f32 {
         let buf = self.buffer[self.index];
-        self.buffer[self.index] = x + buf * 0.5;
-        self.index = (self.index + 1) % self.buffer.len();
+        self.buffer[self.index] = flush(x + buf * 0.5);
+        self.index = wrap(self.index, self.buffer.len());
         buf - x
     }
 }
@@ -252,7 +272,7 @@ impl Limiter {
     pub fn run(&mut self, input: Frame) -> Frame {
         let delayed = self.lookahead[self.index];
         self.lookahead[self.index] = input;
-        self.index = (self.index + 1) % self.lookahead.len();
+        self.index = wrap(self.index, self.lookahead.len());
 
         let peak = input[0].abs().max(input[1].abs());
         let target = if peak > self.threshold {

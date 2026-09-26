@@ -50,6 +50,9 @@ enum Command {
         /// Calidad H.264: menos es mejor (18 es visualmente sin pérdida)
         #[arg(long, default_value_t = 18)]
         crf: u8,
+        /// Preajuste de x264: veryfast, faster, medium, slow…
+        #[arg(long, default_value = "faster")]
+        preset: String,
     },
     /// Exporta un frame del vídeo como PNG, para revisar el aspecto sin codificar
     Frame {
@@ -171,7 +174,13 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 return Err(e.into());
             }
         }
-        Command::Video { out, look, crf, .. } => {
+        Command::Video {
+            out,
+            look,
+            crf,
+            preset,
+            ..
+        } => {
             let out = out.unwrap_or_else(|| file.with_extension("mp4"));
             let audio = cicada_audio::render(&program, SAMPLE_RATE, base_dir)?;
             let wav = std::env::temp_dir().join(format!("cicada-{}.wav", std::process::id()));
@@ -196,8 +205,9 @@ fn run(cli: Cli) -> Result<ExitCode> {
             );
 
             let started = std::time::Instant::now();
+            let encoding = cicada_visual::Encoding { crf, preset };
             let result =
-                cicada_visual::encode(&mut vis, &wav, &out, &ffmpeg, crf, |done, total| {
+                cicada_visual::encode(&mut vis, &wav, &out, &ffmpeg, &encoding, |done, total| {
                     if done % 30 == 0 || done == total {
                         let fps = done as f64 / started.elapsed().as_secs_f64();
                         eprint!(

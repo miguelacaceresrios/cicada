@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 
 use cicada_audio::player::Player;
@@ -45,6 +46,9 @@ pub struct Studio {
 
     /// La pieza que suena ahora (puede ir por detrás del texto si hay errores).
     program: Option<Program>,
+    /// El render que está sonando, para poder recargar las visuales sin
+    /// volver a calcular el audio.
+    audio: Option<Arc<[f32]>>,
     loaded_source: String,
     loaded_generation: u64,
 
@@ -80,6 +84,7 @@ impl Studio {
             generation: 0,
             rendering: None,
             program: None,
+            audio: None,
             loaded_source: String::new(),
             loaded_generation: 0,
             sample_rate: player
@@ -234,6 +239,24 @@ impl Studio {
             Ok(program) => {
                 self.diagnostics.clear();
                 self.generation += 1;
+                // Si la pieza suena igual que la que ya está cargada, basta
+                // con refrescar las visuales: renderizar de nuevo un minuto
+                // de música por retocar un comentario se nota al escribir.
+                if let (Some(current), Some(audio)) = (&self.program, self.audio.clone())
+                    && current.sounds_like(&program)
+                {
+                    let source = self.source.clone();
+                    self.apply(
+                        ctx,
+                        Loaded {
+                            generation: self.generation,
+                            program,
+                            source,
+                            audio,
+                        },
+                    );
+                    return;
+                }
                 self.rendering = Some(jobs::render_preview(
                     ctx,
                     self.generation,
@@ -259,9 +282,16 @@ impl Studio {
     }
 
     fn apply(&mut self, ctx: &egui::Context, loaded: Loaded) {
-        if let Some(p) = &self.player {
+        let reused = self
+            .audio
+            .as_ref()
+            .is_some_and(|a| Arc::ptr_eq(a, &loaded.audio));
+        if let Some(p) = &self.player
+            && !reused
+        {
             p.set_buffer(loaded.audio.clone());
         }
+        self.audio = Some(loaded.audio.clone());
         let name = self.name();
         match &mut self.vis {
             Some(vis) => vis.load(

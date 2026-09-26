@@ -18,7 +18,7 @@ use std::fmt;
 use cicada_core::Program;
 
 pub use timeline::{FrameState, Timeline};
-pub use video::encode;
+pub use video::{Encoding, encode};
 
 #[derive(Debug)]
 pub struct VisualError(pub String);

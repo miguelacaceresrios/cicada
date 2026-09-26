@@ -700,6 +700,7 @@ name = "cicada-visual"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "cicada-audio",
  "cicada-core",
  "fontdue",
  "pollster 1.0.1",

@@ -37,8 +37,13 @@ fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
     return vec4<f32>(p * 2.0 - 1.0, 0.0, 1.0);
 }
 
+// Hash sin funciones trigonométricas. La versión con `sin` costaba una
+// transcendental por muestra, y `fbm` la llama veinte veces por píxel: a
+// 1080p eran cientos de millones de senos por frame.
 fn hash(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+    var q = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+    q = q + dot(q, vec3<f32>(q.y, q.z, q.x) + 33.33);
+    return fract((q.x + q.y) * q.z);
 }
 
 fn noise(p: vec2<f32>) -> f32 {
@@ -52,11 +57,13 @@ fn noise(p: vec2<f32>) -> f32 {
     );
 }
 
-fn fbm(p: vec2<f32>) -> f32 {
+// Ruido fractal. Las octavas se piden según lo que se vea: una textura de
+// fondo al 12 % no necesita el mismo detalle que la niebla del break.
+fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
     var v = 0.0;
     var a = 0.5;
     var q = p;
-    for (var k = 0; k < 5; k++) {
+    for (var k = 0; k < octaves; k++) {
         v += a * noise(q);
         q = q * 2.03 + vec2<f32>(1.7, 9.2);
         a *= 0.5;
@@ -121,7 +128,7 @@ fn scene_drop(p: vec2<f32>) -> vec3<f32> {
     var col = RED * (tun.x * (1.0 + 0.35 * k) + rays * 0.5 * smoothstep(0.1, 0.6, r));
     col += HOT * tun.y * (0.3 + u.pulses.w);
     col += vec3<f32>(1.0, 0.9, 0.85) * core;
-    col += RED * 0.12 * fbm(q * 3.0 + t) * u.scene.w;
+    col += RED * 0.12 * fbm(q * 3.0 + t, 3) * u.scene.w;
     return col;
 }
 
@@ -129,8 +136,8 @@ fn scene_drop(p: vec2<f32>) -> vec3<f32> {
 fn scene_break(p: vec2<f32>) -> vec3<f32> {
     let t = u.frame.z;
     let q = rotate(p, t * 0.02);
-    let f = fbm(q * 2.2 + vec2<f32>(t * 0.05, -t * 0.03));
-    let g = fbm(q * 4.0 - f + t * 0.04);
+    let f = fbm(q * 2.2 + vec2<f32>(t * 0.05, -t * 0.03), 4);
+    let g = fbm(q * 4.0 - f + t * 0.04, 4);
     var col = ICE * pow(g, 2.2) * 0.8;
     col += vec3<f32>(0.9) * pow(g, 8.0) * (0.4 + u.pulses.w);
     return col;

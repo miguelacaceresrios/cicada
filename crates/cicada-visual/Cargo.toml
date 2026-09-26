@@ -11,3 +11,6 @@ wgpu.workspace = true
 pollster.workspace = true
 bytemuck.workspace = true
 fontdue.workspace = true
+
+[dev-dependencies]
+cicada-audio.workspace = true

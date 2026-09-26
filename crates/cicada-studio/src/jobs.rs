@@ -127,7 +127,8 @@ pub fn export_video(ctx: &egui::Context, job: VideoJob) -> Export {
             )
             .map_err(|e| e.to_string())?;
             total.store(vis.frame_count(), Ordering::Relaxed);
-            cicada_visual::encode(&mut vis, &wav, &job.out, &job.ffmpeg, 18, |d, _| {
+            let encoding = cicada_visual::Encoding::default();
+            cicada_visual::encode(&mut vis, &wav, &job.out, &job.ffmpeg, &encoding, |d, _| {
                 done.store(d, Ordering::Relaxed);
                 if d % 15 == 0 {
                     ctx.request_repaint();

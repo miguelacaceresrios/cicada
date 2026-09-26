@@ -332,3 +332,59 @@ intro 8:
     assert_eq!(solo, con_mas);
     assert!(!solo.is_empty());
 }
+
+#[test]
+fn comments_and_blank_lines_do_not_change_the_sound() {
+    let base = compile(
+        "bpm 190
+kick x.x.
+hat  ..x.
+",
+    )
+    .unwrap();
+
+    // Un comentario, una línea en blanco o cambiar el título mueven las
+    // posiciones del código pero no el audio.
+    let retocado = compile(
+        "# un comentario
+bpm 190
+
+kick x.x.
+hat  ..x.
+",
+    )
+    .unwrap();
+    assert!(base.sounds_like(&retocado));
+    let con_titulo = compile(
+        "title \"Algo\"
+bpm 190
+kick x.x.
+hat  ..x.
+",
+    )
+    .unwrap();
+    assert!(base.sounds_like(&con_titulo));
+
+    // Cualquier cambio real sí cuenta.
+    for distinto in [
+        "bpm 191
+kick x.x.
+hat  ..x.
+",
+        "bpm 190
+kick x.xx
+hat  ..x.
+",
+        "bpm 190
+kick x.x. gain 0.5
+hat  ..x.
+",
+        "seed 1
+bpm 190
+kick x.x.
+hat  ..x.
+",
+    ] {
+        assert!(!base.sounds_like(&compile(distinto).unwrap()), "{distinto}");
+    }
+}

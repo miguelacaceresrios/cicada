@@ -50,6 +50,11 @@ pub struct Engine {
     buses: Vec<Bus>,
     delay: Delay,
     reverb: Reverb,
+    /// Si ninguna pista manda a un efecto, no se procesa: una reverb son dos
+    /// docenas de filtros por muestra, y hacerlos con la entrada a cero es
+    /// trabajo tirado.
+    uses_delay: bool,
+    uses_reverb: bool,
     limiter: Limiter,
     pos: u64,
     end: u64,
@@ -89,15 +94,12 @@ impl Engine {
             .map(|ev| {
                 let at = (ev.start.to_f64() * samples_per_cycle).round() as u64;
                 let kind = match (&program.tracks[ev.track].sound, ev.kind) {
-                    (Sound::Kick, _) => Kind::Kick { phase: 0.0 },
-                    (Sound::Snare, _) => Kind::Snare {
-                        phase: 0.0,
-                        lp: 0.0,
-                    },
-                    (Sound::Hat, _) => Kind::Hat { lp: 0.0 },
+                    (Sound::Kick, _) => Kind::kick(sr),
+                    (Sound::Snare, _) => Kind::snare(sr),
+                    (Sound::Hat, _) => Kind::hat(sr),
                     (Sound::Synth(wave), EventKind::Note { midi }) => {
                         let seconds = (ev.duration.to_f64() * program.seconds_per_cycle()) as f32;
-                        Voice::synth(*wave, midi_to_hz(midi), seconds, sr)
+                        Kind::synth(*wave, midi_to_hz(midi), seconds, sr)
                     }
                     (Sound::Synth(_), EventKind::Hit) => {
                         unreachable!("el análisis semántico impide golpes en un synth")
@@ -123,6 +125,8 @@ impl Engine {
             .collect();
 
         // Un tempo muy lento daría un delay de minutos y un búfer enorme.
+        let uses_delay = program.tracks.iter().any(|t| t.fx.delay > 0.0);
+        let uses_reverb = program.tracks.iter().any(|t| t.fx.reverb > 0.0);
         let delay_seconds = (DELAY_CYCLES * program.seconds_per_cycle()).min(4.0) as f32;
         Ok(Engine {
             scheduled,
@@ -131,6 +135,8 @@ impl Engine {
             buses,
             delay: Delay::new(delay_seconds, DELAY_FEEDBACK, sr),
             reverb: Reverb::new(sr),
+            uses_delay,
+            uses_reverb,
             limiter: Limiter::new(sr),
             pos: 0,
             end: (program.length() as f64 * samples_per_cycle).round() as u64,
@@ -189,9 +195,13 @@ impl Engine {
                 to_reverb = fx::mix(to_reverb, wet, bus.reverb);
             }
 
-            let echo = self.delay.run(to_delay);
-            let tail = self.reverb.run(to_reverb);
-            let mixed = fx::mix(fx::mix(dry, echo, 1.0), tail, REVERB_LEVEL);
+            let mut mixed = dry;
+            if self.uses_delay {
+                mixed = fx::mix(mixed, self.delay.run(to_delay), 1.0);
+            }
+            if self.uses_reverb {
+                mixed = fx::mix(mixed, self.reverb.run(to_reverb), REVERB_LEVEL);
+            }
             let out_frame = self.limiter.run([mixed[0] * MASTER, mixed[1] * MASTER]);
             *frame = out_frame;
             self.pos += 1;

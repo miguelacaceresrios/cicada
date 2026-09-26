@@ -56,21 +56,48 @@ struct Canvas<'a> {
 }
 
 impl Canvas<'_> {
-    fn blend(&mut self, x: i32, y: i32, c: Rgb, a: f32) {
-        if x < 0 || y < 0 || x >= self.width || y >= self.height || a <= 0.0 {
-            return;
-        }
-        let i = ((y * self.width + x) * 4) as usize;
-        for (px, c) in self.px[i..i + 3].iter_mut().zip(c) {
-            let dst = *px as f32 / 255.0;
-            *px = ((dst + (c - dst) * a.min(1.0)) * 255.0).round() as u8;
+    /// Mezcla en punto fijo de 8 bits. En coma flotante había que convertir,
+    /// multiplicar y redondear tres veces por píxel, y a 1080p eso son varios
+    /// millones de conversiones por frame.
+    #[inline]
+    fn blend_pixel(px: &mut [u8], c: [u8; 3], alpha: u16) {
+        for (dst, src) in px.iter_mut().zip(c) {
+            let mix = *dst as u16 * (256 - alpha) + src as u16 * alpha;
+            *dst = (mix >> 8) as u8;
         }
     }
 
+    #[inline]
+    fn byte_color(c: Rgb) -> [u8; 3] {
+        c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8)
+    }
+
+    #[inline]
+    fn alpha(a: f32) -> u16 {
+        (a.clamp(0.0, 1.0) * 256.0) as u16
+    }
+
     fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, c: Rgb, a: f32) {
-        for py in y.round() as i32..(y + h).round() as i32 {
-            for px in x.round() as i32..(x + w).round() as i32 {
-                self.blend(px, py, c, a);
+        let alpha = Self::alpha(a);
+        if alpha == 0 {
+            return;
+        }
+        // Recortar una vez contra el lienzo ahorra cuatro comprobaciones por
+        // píxel dentro del bucle.
+        let x0 = (x.round() as i32).clamp(0, self.width);
+        let x1 = ((x + w).round() as i32).clamp(x0, self.width);
+        let y0 = (y.round() as i32).clamp(0, self.height);
+        let y1 = ((y + h).round() as i32).clamp(y0, self.height);
+        if x0 == x1 {
+            return;
+        }
+        let color = Self::byte_color(c);
+        let stride = (self.width * 4) as usize;
+        for row in y0..y1 {
+            let start = row as usize * stride + x0 as usize * 4;
+            let end = start + (x1 - x0) as usize * 4;
+            for px in self.px[start..end].as_chunks_mut::<4>().0 {
+                Self::blend_pixel(&mut px[..3], color, alpha);
             }
         }
     }
@@ -87,15 +114,34 @@ impl Canvas<'_> {
     fn glyph(&mut self, face: &mut Face, ch: char, x: f32, y: f32, c: Rgb, a: f32) -> f32 {
         let g = face.glyph(ch);
         let m = g.metrics;
+        let advance = m.advance_width;
         let gx = x.round() as i32 + m.xmin;
         let gy = y.round() as i32 - m.height as i32 - m.ymin;
+        let color = Self::byte_color(c);
+        let a = a.clamp(0.0, 1.0);
+        let stride = (self.width * 4) as usize;
         for row in 0..m.height {
-            for col in 0..m.width {
-                let cov = g.bitmap[row * m.width + col] as f32 / 255.0;
-                self.blend(gx + col as i32, gy + row as i32, c, cov * a);
+            let py = gy + row as i32;
+            if py < 0 || py >= self.height {
+                continue;
+            }
+            // Recorte horizontal por fila, en vez de comprobar cada píxel.
+            let from = (-gx).max(0) as usize;
+            let to = (self.width - gx).clamp(0, m.width as i32) as usize;
+            for col in from..to {
+                let cov = g.bitmap[row * m.width + col];
+                if cov == 0 {
+                    continue;
+                }
+                let alpha = (cov as f32 / 255.0 * a * 256.0) as u16;
+                if alpha == 0 {
+                    continue;
+                }
+                let i = py as usize * stride + (gx + col as i32) as usize * 4;
+                Self::blend_pixel(&mut self.px[i..i + 3], color, alpha);
             }
         }
-        x + m.advance_width
+        x + advance
     }
 }
 

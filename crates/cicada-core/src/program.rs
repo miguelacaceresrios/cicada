@@ -8,7 +8,7 @@ use crate::pattern::Slot;
 use crate::rng;
 use crate::time::Rational;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Program {
     /// Nombre de la pieza y de quien la firma. Salen en la cabecera del vídeo.
     pub title: Option<String>,
@@ -22,7 +22,7 @@ pub struct Program {
     pub sections: Vec<Section>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Track {
     pub name: String,
     pub sound: Sound,
@@ -114,7 +114,7 @@ impl Fx {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Section {
     pub name: String,
     pub kind: SectionKind,
@@ -155,7 +155,7 @@ impl SectionKind {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Layer {
     pub track: usize,
     pub slots: Vec<Slot>,
@@ -192,7 +192,46 @@ pub struct Event {
 /// útil decirlo con un error que morir sin explicación.
 pub const MAX_SECONDS: f64 = 3600.0;
 
+/// Compara dos secciones por lo que suena. Se dejan fuera la línea de la
+/// cabecera y la posición de cada paso: mueven el resaltado del editor, no el
+/// audio, así que añadir un comentario no debería obligar a renderizar otra
+/// vez la pieza entera.
+fn section_sounds_like((a, b): (&Section, &Section)) -> bool {
+    a.name == b.name
+        && a.kind == b.kind
+        && a.start == b.start
+        && a.length == b.length
+        && a.energy == b.energy
+        && a.layers.len() == b.layers.len()
+        && a.layers.iter().zip(&b.layers).all(|(x, y)| {
+            x.track == y.track
+                && x.params == y.params
+                && x.slots.len() == y.slots.len()
+                && x.slots.iter().zip(&y.slots).all(|(p, q)| {
+                    p.offset == q.offset && p.duration == q.duration && p.atom == q.atom
+                })
+        })
+}
+
 impl Program {
+    /// ¿Suenan las dos piezas exactamente igual?
+    ///
+    /// El título y el autor no entran: cambiarlos mueve la cabecera del vídeo
+    /// pero no el audio, y volver a renderizar un minuto de música por
+    /// retocar un comentario se nota al escribir.
+    pub fn sounds_like(&self, other: &Program) -> bool {
+        self.bpm == other.bpm
+            && self.beats == other.beats
+            && self.seed == other.seed
+            && self.tracks == other.tracks
+            && self.sections.len() == other.sections.len()
+            && self
+                .sections
+                .iter()
+                .zip(&other.sections)
+                .all(section_sounds_like)
+    }
+
     /// Duración total en ciclos.
     pub fn length(&self) -> i64 {
         self.sections.last().map_or(0, |s| s.start + s.length)
