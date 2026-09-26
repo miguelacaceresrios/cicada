@@ -187,6 +187,11 @@ pub struct Event {
     pub src: Pos,
 }
 
+/// Tope de duración de una pieza. Sin él, un `bpm` diminuto con muchos
+/// ciclos pide cientos de gigabytes al renderizar y tumba el proceso; es más
+/// útil decirlo con un error que morir sin explicación.
+pub const MAX_SECONDS: f64 = 3600.0;
+
 impl Program {
     /// Duración total en ciclos.
     pub fn length(&self) -> i64 {
@@ -219,7 +224,7 @@ impl Program {
             let Some((section_index, section)) = self.section_at(cycle) else {
                 continue;
             };
-            for (layer_index, layer) in section.layers.iter().enumerate() {
+            for layer in section.layers.iter() {
                 let track = &self.tracks[layer.track];
                 for (step, slot) in layer.slots.iter().enumerate() {
                     let start = Rational::int(cycle) + slot.offset;
@@ -230,11 +235,13 @@ impl Program {
                         Atom::Hit => (EventKind::Hit, 0.8),
                         Atom::Accent => (EventKind::Hit, 1.0),
                         Atom::Maybe => {
+                            // No entra el índice de la capa: si entrara,
+                            // añadir una pista a la sección cambiaría el azar
+                            // de las demás, y en directo eso es desconcertante.
                             let roll = rng::unit(rng::hash(&[
                                 self.seed,
                                 rng::hash_str(&track.name),
                                 cycle as u64,
-                                layer_index as u64,
                                 step as u64,
                             ]));
                             if roll >= layer.params.prob as f64 {

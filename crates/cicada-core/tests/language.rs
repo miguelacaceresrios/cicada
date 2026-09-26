@@ -135,10 +135,7 @@ fn semantic_errors() {
         errors("lead = synth\nlead x.x."),
         ["`lead` es un synth: su patrón necesita notas"]
     );
-    assert_eq!(
-        errors("bpm 0"),
-        ["`bpm` debe ser mayor que 0 y como mucho 1000"]
-    );
+    assert_eq!(errors("bpm 0"), ["`bpm` debe ser un tempo entre 20 y 1000"]);
     assert_eq!(errors("kick x dist 3"), ["`dist` debe estar entre 0 y 1"]);
     assert_eq!(
         errors("drop 0:\n  kick x"),
@@ -262,4 +259,76 @@ fn fx_ranges_are_checked() {
         ["`reverb` debe estar entre 0 y 1"]
     );
     assert_eq!(errors("hat x pan -2"), ["`pan` debe estar entre -1 y 1"]);
+}
+
+#[test]
+fn absurd_pieces_are_rejected_not_rendered() {
+    // Un tempo diminuto pedía gigabytes al renderizar y tumbaba el proceso.
+    assert_eq!(
+        errors(
+            "bpm 0.01
+kick x...
+"
+        ),
+        ["`bpm` debe ser un tempo entre 20 y 1000"]
+    );
+    let err = compile(
+        "bpm 20
+beats 32
+length 10000
+kick x...
+",
+    )
+    .unwrap_err();
+    assert!(
+        err[0].message.starts_with("la pieza duraría"),
+        "{}",
+        err[0].message
+    );
+
+    // Una pieza larga pero razonable sigue valiendo: 250 ciclos de 12 s
+    // son 50 minutos.
+    assert!(
+        compile(
+            "bpm 20
+beats 4
+length 250
+kick x...
+"
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn randomness_ignores_the_other_tracks() {
+    // Añadir una pista no puede cambiar el azar de las demás: en directo eso
+    // haría que tocar una línea alterase el resto de la sección.
+    let hats = |src: &str| {
+        let p = compile(src).unwrap();
+        let name_of = |e: &cicada_core::Event| p.tracks[e.track].name.clone();
+        p.query(Rational::ZERO, Rational::int(8))
+            .into_iter()
+            .filter(|e| name_of(e) == "hat")
+            .map(|e| e.start)
+            .collect::<Vec<_>>()
+    };
+    let solo = hats(
+        "seed 5
+length 8
+intro 8:
+  hat x?x?x?x?
+",
+    );
+    let con_mas = hats(
+        "seed 5
+length 8
+intro 8:
+  kick x...
+  hat x?x?x?x?
+  snare ..x.
+",
+    );
+    assert_eq!(solo, con_mas);
+    assert!(!solo.is_empty());
 }

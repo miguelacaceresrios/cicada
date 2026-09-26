@@ -106,14 +106,24 @@ impl Engine {
                         data: samples[&ev.track].clone(),
                     },
                 };
-                let noise_seed = rng::hash(&[program.seed, at, ev.track as u64]);
+                // La semilla sale de la posición musical, no de la muestra:
+                // así el ruido del snare y del hat suena igual a 44,1 kHz que
+                // a la frecuencia de la tarjeta, y la vista previa de Studio
+                // coincide con lo que se exporta.
+                let noise_seed = rng::hash(&[
+                    program.seed,
+                    ev.start.num() as u64,
+                    ev.start.den() as u64,
+                    ev.track as u64,
+                ]);
                 let voice =
                     Voice::new(kind, ev.velocity * ev.gain, ev.pan, ev.dist, sr, noise_seed);
                 (at, ev.track, voice)
             })
             .collect();
 
-        let delay_seconds = (DELAY_CYCLES * program.seconds_per_cycle()) as f32;
+        // Un tempo muy lento daría un delay de minutos y un búfer enorme.
+        let delay_seconds = (DELAY_CYCLES * program.seconds_per_cycle()).min(4.0) as f32;
         Ok(Engine {
             scheduled,
             next: 0,
@@ -145,7 +155,9 @@ impl Engine {
     /// Rellena `out` con muestras estéreo intercaladas: izquierda, derecha,
     /// izquierda... Su longitud debe ser par.
     pub fn process(&mut self, out: &mut [f32]) {
-        for frame in out.chunks_mut(CHANNELS) {
+        // Un bloque impar dejaría un frame a medias: se ignora esa muestra
+        // suelta en vez de entrar en pánico dentro del hilo de audio.
+        for frame in out.as_chunks_mut::<CHANNELS>().0 {
             while let Some((at, track, voice)) = self.scheduled.get(self.next) {
                 if *at > self.pos {
                     break;
@@ -181,7 +193,7 @@ impl Engine {
             let tail = self.reverb.run(to_reverb);
             let mixed = fx::mix(fx::mix(dry, echo, 1.0), tail, REVERB_LEVEL);
             let out_frame = self.limiter.run([mixed[0] * MASTER, mixed[1] * MASTER]);
-            frame.copy_from_slice(&out_frame);
+            *frame = out_frame;
             self.pos += 1;
         }
         self.active.retain(|(_, v)| !v.is_done());

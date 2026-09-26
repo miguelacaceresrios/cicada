@@ -202,6 +202,9 @@ guarda una captura y cierra; así se generó `docs/studio.png`.
 | Filtros, delay y reverb cambian el sonido | `filters_and_sends_change_the_sound` |
 | Eventos en su muestra exacta | `events_land_on_the_exact_sample` |
 | Nunca más de 3 destellos por segundo | `flashes_never_exceed_three_per_second` |
+| El ruido no depende de la frecuencia de muestreo | `noise_does_not_depend_on_the_sample_rate` |
+| Añadir una pista no altera el azar de las demás | `randomness_ignores_the_other_tracks` |
+| Una pieza imposible se rechaza, no revienta | `absurd_pieces_are_rejected_not_rendered` |
 | Impulsos, fundidos y pasos activos | `visual/timeline.rs` |
 
 El determinismo está garantizado en una misma plataforma. Entre sistemas

@@ -457,7 +457,10 @@ impl eframe::App for Studio {
         self.dialogs(&ctx);
 
         if self.playing() || self.export.is_some() || self.screenshot.is_some() {
-            ctx.request_repaint();
+            // Con `request_repaint()` a secas la ventana repinta tan rápido
+            // como pueda, y cada repintado dibuja un frame en la GPU: en un
+            // portátil eso es ventilador para nada.
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         } else if self.rendering.is_some() || self.source != self.compiled {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }

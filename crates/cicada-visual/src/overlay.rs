@@ -17,8 +17,6 @@ struct Glyph {
 
 struct Face {
     font: Font,
-    /// Tamaño base, sin encoger.
-    base: f32,
     size: f32,
     cache: HashMap<char, Glyph>,
 }
@@ -29,19 +27,8 @@ impl Face {
             Font::from_bytes(bytes, FontSettings::default()).expect("fuente incluida válida");
         Face {
             font,
-            base: size,
             size,
             cache: HashMap::new(),
-        }
-    }
-
-    /// Reescala la fuente sobre su tamaño base. Vacía la caché, así que solo
-    /// se usa en textos cortos como el título.
-    fn scale(&mut self, factor: f32) {
-        let size = self.base * factor;
-        if size != self.size {
-            self.size = size;
-            self.cache.clear();
         }
     }
 
@@ -164,12 +151,23 @@ impl Overlay {
             headers.push(header.is_some());
         }
 
+        // El título se ajusta una sola vez al construir la capa. Reescalar
+        // la fuente en cada frame obligaría a rasterizar de nuevo todos sus
+        // glifos, y a 120 px eso no es barato.
+        let display = program.title.clone().unwrap_or_else(|| name.to_string());
+        let mut title = Face::new(BOLD, 120.0 * s);
+        let natural = title.width(&display.to_uppercase());
+        if natural > 0.0 {
+            let fit = (width as f32 * 0.84 / natural).min(1.0);
+            title = Face::new(BOLD, 120.0 * s * fit);
+        }
+
         Overlay {
             code: Face::new(REGULAR, 21.0 * s),
             code_bold: Face::new(BOLD, 21.0 * s),
             hud: Face::new(REGULAR, 19.0 * s),
             hud_bold: Face::new(BOLD, 22.0 * s),
-            title: Face::new(BOLD, 120.0 * s),
+            title,
             colors: lines
                 .iter()
                 .zip(&headers)
@@ -184,7 +182,7 @@ impl Overlay {
                 .iter()
                 .map(|sec| sec.name.to_uppercase())
                 .collect(),
-            name: program.title.clone().unwrap_or_else(|| name.to_string()),
+            name: display,
             artist: program.artist.clone(),
             bpm: program.bpm,
             beats: program.beats,
@@ -384,16 +382,10 @@ impl Overlay {
         let (w, h) = (self.width as f32, self.height as f32);
         canvas.rect(0.0, 0.0, w, h, INK, 0.35 * a);
 
-        // El nombre de la pieza en grande, y debajo quien la firma. Un título
-        // largo se encoge para que quepa entre los márgenes.
+        // El nombre de la pieza en grande, y debajo quien la firma.
         let title = self.name.to_uppercase();
-        let natural = self.title.width(&title);
-        let room = w * 0.84;
-        let squeeze = (room / natural).min(1.0);
-        self.title.scale(squeeze);
         let tw = self.title.width(&title);
         canvas.text(&mut self.title, &title, (w - tw) / 2.0, h * 0.5, TEXT, a);
-        self.title.scale(1.0);
 
         let sub = self
             .artist

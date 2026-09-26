@@ -144,7 +144,7 @@ pub fn export_video(ctx: &egui::Context, job: VideoJob) -> Export {
 /// o donde lo deja `winget` (el `PATH` de una app abierta antes de instalarlo
 /// no se actualiza).
 pub fn find_ffmpeg() -> Option<PathBuf> {
-    let exe = if cfg!(windows) {
+    let exe_name = if cfg!(windows) {
         "ffmpeg.exe"
     } else {
         "ffmpeg"
@@ -152,13 +152,17 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("CICADA_FFMPEG") {
         return Some(p.into());
     }
-    let beside = std::env::current_exe().ok()?.parent()?.join(exe);
-    if beside.is_file() {
-        return Some(beside);
+    // Con `?` aquí, un fallo al leer la ruta del ejecutable se saltaba el
+    // resto de la búsqueda y CICADA decía que FFmpeg no estaba instalado.
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(exe_name)));
+    if let Some(path) = beside.filter(|p| p.is_file()) {
+        return Some(path);
     }
     if let Some(path) = std::env::var_os("PATH")
         && let Some(found) = std::env::split_paths(&path)
-            .map(|d| d.join(exe))
+            .map(|d| d.join(exe_name))
             .find(|p| p.is_file())
     {
         return Some(found);
@@ -166,11 +170,11 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     let local = PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
         .join("Microsoft")
         .join("WinGet");
-    let link = local.join("Links").join(exe);
+    let link = local.join("Links").join(exe_name);
     if link.is_file() {
         return Some(link);
     }
-    find_in_winget_packages(&local.join("Packages"), exe)
+    find_in_winget_packages(&local.join("Packages"), exe_name)
 }
 
 fn find_in_winget_packages(packages: &Path, exe: &str) -> Option<PathBuf> {

@@ -86,3 +86,48 @@ fn filters_and_sends_change_the_sound() {
     assert!(rms(&filtered) < rms(&plain), "el paso bajo quita energía");
     assert!(washed.len() > plain.len(), "la reverb alarga la cola");
 }
+
+#[test]
+fn noise_does_not_depend_on_the_sample_rate() {
+    // La vista previa de Studio usa la frecuencia de la tarjeta y la
+    // exportación 44,1 kHz: el ruido del hat tiene que sonar igual en las dos.
+    let src = "bpm 120
+length 1
+seed 9
+hat x*8
+";
+    let program = compile(src).unwrap();
+    let at = |sr: u32| {
+        let out = render(&program, sr, Path::new(".")).unwrap();
+        // Envolvente en 200 puntos, para comparar entre frecuencias distintas.
+        let frames = out.len() / CHANNELS;
+        (0..200)
+            .map(|i| {
+                let a = i * frames / 200;
+                let b = (i + 1) * frames / 200;
+                rms(&out[a * CHANNELS..b * CHANNELS])
+            })
+            .collect::<Vec<f32>>()
+    };
+    let (a, b) = (at(44_100), at(48_000));
+    let diff = a
+        .iter()
+        .zip(&b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0f32, f32::max);
+    assert!(diff < 0.02, "la envolvente cambia demasiado: {diff}");
+}
+
+#[test]
+fn a_slow_tempo_does_not_blow_up_the_delay() {
+    // Con el delay atado al tempo sin tope, 20 bpm pedía un búfer enorme.
+    let out = render_src(
+        "bpm 20
+beats 4
+length 1
+l = synth saw delay 1
+l C2 ~
+",
+    );
+    assert!(out.len() < 60 * SR as usize * CHANNELS);
+}

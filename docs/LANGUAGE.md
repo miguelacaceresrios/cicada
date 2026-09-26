@@ -48,10 +48,14 @@ declararlo.
 
 | Ajuste | Valor | Por defecto |
 | --- | --- | --- |
-| `bpm` | mayor que 0, como mucho 1000 | 120 |
+| `bpm` | entre 20 y 1000 | 120 |
 | `beats` | beats por ciclo, entero de 1 a 32 | 4 |
 | `seed` | entero ≥ 0 | 0 |
 | `length` | duración en ciclos si no hay secciones | 8 |
+
+Una pieza no puede pasar de una hora. El límite existe porque un tempo muy
+lento con muchos ciclos pide cientos de gigabytes al renderizar; es mejor
+decirlo con un error que quedarse sin memoria.
 
 ### Datos de la pieza
 

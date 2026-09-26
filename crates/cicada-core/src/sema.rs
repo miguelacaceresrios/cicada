@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::ast::{self, Atom, File, Item, PatternLine, Source, Step};
 use crate::diag::{Diagnostic, Pos, Spanned};
 use crate::pattern::flatten;
-use crate::program::{Fx, Layer, Params, Program, Section, SectionKind, Sound, Track};
+use crate::program::{self, Fx, Layer, Params, Program, Section, SectionKind, Sound, Track};
 
 pub fn analyze(file: &File) -> Result<Program, Vec<Diagnostic>> {
     Analyzer::default().run(file)
@@ -85,8 +85,8 @@ impl Analyzer {
         let bpm = self.setting(
             "bpm",
             120.0,
-            |v| v > 0.0 && v <= 1000.0,
-            "mayor que 0 y como mucho 1000",
+            |v| (20.0..=1000.0).contains(&v),
+            "un tempo entre 20 y 1000",
         );
         let seed = self.setting(
             "seed",
@@ -128,7 +128,7 @@ impl Analyzer {
             }
         }
 
-        Ok(Program {
+        let program = Program {
             title: self.meta.remove("title"),
             artist: self.meta.remove("artist"),
             bpm,
@@ -136,7 +136,32 @@ impl Analyzer {
             seed: seed as u64,
             tracks: self.tracks,
             sections,
-        })
+        };
+
+        // Un tempo lento con muchos ciclos da una pieza de días, que al
+        // renderizar pide cientos de gigabytes. Mejor decirlo aquí.
+        let seconds = program.duration_seconds();
+        if seconds > program::MAX_SECONDS {
+            let pos = self
+                .settings
+                .get("length")
+                .or_else(|| self.settings.get("bpm"))
+                .map_or(Pos::default(), |v| v.pos);
+            self.diags.push(
+                Diagnostic::new(
+                    pos,
+                    format!(
+                        "la pieza duraría {:.0} horas, y el máximo es {:.0}",
+                        seconds / 3600.0,
+                        program::MAX_SECONDS / 3600.0
+                    ),
+                )
+                .with_help("sube el `bpm` o baja los ciclos de las secciones"),
+            );
+            return Err(self.diags);
+        }
+
+        Ok(program)
     }
 
     fn setting(

@@ -81,7 +81,9 @@ pub fn gutter_job(
     errors: &[Diagnostic],
     current: Option<usize>,
 ) -> LayoutJob {
-    let total = text.lines().count().max(1);
+    // `lines()` no cuenta la línea vacía que deja un salto final, pero el
+    // editor sí la dibuja: sin esto al margen le faltaba el último número.
+    let total = text.split('\n').count();
     let width = total.to_string().len();
     let mut job = LayoutJob::default();
     for line in 1..=total {
