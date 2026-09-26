@@ -260,6 +260,13 @@ fn load(path: &Path) -> Result<Option<(String, Program)>> {
 fn print_summary(file: &Path, p: &Program) {
     let names: Vec<_> = p.tracks.iter().map(|t| t.name.as_str()).collect();
     println!("✓ {}", file.display());
+    if let Some(title) = &p.title {
+        let by = p
+            .artist
+            .as_ref()
+            .map_or(String::new(), |a| format!(" — {a}"));
+        println!("  {title}{by}");
+    }
     println!(
         "  {} bpm · {} beats por ciclo · seed {}",
         p.bpm, p.beats, p.seed

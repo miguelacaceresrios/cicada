@@ -167,6 +167,35 @@ fn windows_files_compile() {
 }
 
 #[test]
+fn piece_metadata() {
+    let p = compile(
+        "title \"Rotterdam\"
+artist \"Isometrical\"
+kick x...
+",
+    )
+    .unwrap();
+    assert_eq!(p.title.as_deref(), Some("Rotterdam"));
+    assert_eq!(p.artist.as_deref(), Some("Isometrical"));
+
+    // Sin metadatos la pieza sigue siendo válida.
+    assert_eq!(compile("kick x...").unwrap().title, None);
+
+    assert_eq!(
+        errors("title Rotterdam"),
+        ["`title` necesita un texto entre comillas"]
+    );
+    assert_eq!(errors("title \"\""), ["`title` no puede estar vacío"]);
+    assert_eq!(
+        errors(
+            "title \"a\"
+title \"b\""
+        ),
+        ["`title` está definido dos veces"]
+    );
+}
+
+#[test]
 fn stereo_and_fx_modifiers() {
     let p = compile(
         "lead = synth saw lpf 800 hpf 120 delay 0.4 reverb 0.5 gain 0.7 pan -0.3

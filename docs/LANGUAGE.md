@@ -35,6 +35,7 @@ drop 16:
 | Forma | Ejemplo | Qué es |
 | --- | --- | --- |
 | `ajuste valor` | `bpm 195` | Ajuste global |
+| `dato "texto"` | `title "Rotterdam"` | Datos de la pieza |
 | `pista = sonido [mods]` | `bass = synth saw gain 0.8` | Declaración de sonido |
 | `nombre ciclos:` | `drop 16:` | Sección; su cuerpo va indentado |
 | `pista patrón [mods]` | `kick x.x.x.x. dist 0.7` | Patrón |
@@ -51,6 +52,16 @@ declararlo.
 | `beats` | beats por ciclo, entero de 1 a 32 | 4 |
 | `seed` | entero ≥ 0 | 0 |
 | `length` | duración en ciclos si no hay secciones | 8 |
+
+### Datos de la pieza
+
+`title` y `artist` no cambian el sonido: salen en la cabecera del vídeo y en
+la barra inferior, que es lo que necesita una publicación en YouTube.
+
+```text
+title "Hakken Ritual"
+artist "Isometrical"
+```
 
 ### Sonidos
 
@@ -172,5 +183,4 @@ error: `z` no es válido en un patrón
 - Transformaciones: `rev`, `fast`, `slow`, `every`, `euclid(3,8)`
 - Automatización de parámetros dentro de una sección
 - Más efectos: bitcrush, chorus, filtro con resonancia
-- Metadatos de la pieza (`title`, `artist`) para la cabecera del vídeo
 - Bloque `visual` para asociar eventos a efectos (ver el roadmap)

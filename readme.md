@@ -7,6 +7,9 @@ audio. Está pensado para música electrónica dura y rápida (Hakken, Gabber),
 pero el lenguaje no está atado a ningún género.
 
 ```text
+title "Hakken Ritual"
+artist "Isometrical"
+
 bpm 200
 seed 2026
 
@@ -77,8 +80,11 @@ empieza un drop, sin tener que adivinarlo analizando la señal de audio.
 
 ## Instalar (Windows)
 
-Hace falta [Rust](https://rustup.rs) 1.88 o posterior. Después, doble clic en
-**`install.cmd`**. El instalador:
+Doble clic en **`install.cmd`**. Si partes del repositorio hace falta
+[Rust](https://rustup.rs) 1.88 o posterior, porque el instalador compila; el
+zip de la página de *releases* ya trae los programas listos.
+
+El instalador:
 
 - compila CICADA y lo instala en `%LOCALAPPDATA%\Programs\CICADA`, sin pedir
   permisos de administrador;
@@ -157,7 +163,7 @@ cada frame sabe exactamente qué suena en ese instante.
 | Versión | Objetivo | Contenido |
 | --- | --- | --- |
 | **0.1 — Sonar** | De texto a audio | ✅ lenguaje, secciones, seeds, IR, síntesis, WAV, `play` · pendiente: pulir el sonido del kick |
-| **0.2 — Ver** | Un vídeo listo para YouTube | ✅ motor visual en `wgpu`, cuatro escenas, código en pantalla, limitador de destellos, `cicada video` → MP4 · siguiente: vista previa en ventana, texturas a partir de la FFT |
+| **0.2 — Ver** | Un vídeo listo para YouTube | ✅ motor visual en `wgpu`, cuatro escenas, código en pantalla, cabecera con `title`/`artist`, limitador de destellos, `cicada video` → MP4 · siguiente: texturas a partir de la FFT |
 | **0.3 — Componer** | Piezas más ricas | ✅ estéreo, filtros, delay, reverb y limitador · siguiente: transformaciones (`euclid`, `every`, `rev`) y automatización |
 | **0.4 — En vivo** | Live coding | ✅ CICADA Studio con recarga en caliente · siguiente: MIDI y controladores, grabar la sesión en vivo |
 | **0.5 — Web** | Probar sin instalar | Playground en el navegador con el core compilado a WASM |

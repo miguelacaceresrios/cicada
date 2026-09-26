@@ -9,6 +9,10 @@ use crate::time::Rational;
 #[derive(Clone, Debug, Serialize)]
 pub struct Ir {
     pub version: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artist: Option<String>,
     pub bpm: f64,
     pub beats: u32,
     pub seed: u64,
@@ -38,6 +42,8 @@ impl Program {
     pub fn to_ir(&self) -> Ir {
         Ir {
             version: env!("CARGO_PKG_VERSION"),
+            title: self.title.clone(),
+            artist: self.artist.clone(),
             bpm: self.bpm,
             beats: self.beats,
             seed: self.seed,

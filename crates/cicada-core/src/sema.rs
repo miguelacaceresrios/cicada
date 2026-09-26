@@ -16,6 +16,7 @@ pub fn analyze(file: &File) -> Result<Program, Vec<Diagnostic>> {
 struct Analyzer {
     diags: Vec<Diagnostic>,
     settings: HashMap<String, Spanned<f64>>,
+    meta: HashMap<String, String>,
     tracks: Vec<Track>,
     by_name: HashMap<String, usize>,
 }
@@ -37,6 +38,20 @@ impl Analyzer {
                     if self
                         .settings
                         .insert(name.value.clone(), value.clone())
+                        .is_some()
+                    {
+                        self.error(
+                            name.pos,
+                            format!("`{}` está definido dos veces", name.value),
+                        );
+                    }
+                }
+                Item::Meta { name, value } => {
+                    if value.value.trim().is_empty() {
+                        self.error(value.pos, format!("`{}` no puede estar vacío", name.value));
+                    } else if self
+                        .meta
+                        .insert(name.value.clone(), value.value.clone())
                         .is_some()
                     {
                         self.error(
@@ -114,6 +129,8 @@ impl Analyzer {
         }
 
         Ok(Program {
+            title: self.meta.remove("title"),
+            artist: self.meta.remove("artist"),
             bpm,
             beats: beats as u32,
             seed: seed as u64,

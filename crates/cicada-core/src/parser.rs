@@ -13,6 +13,8 @@ use crate::lexer::{Line, TokKind, Token, lex};
 use crate::note::parse_note;
 
 pub const SETTINGS: &[&str] = &["bpm", "seed", "beats", "length"];
+/// Datos de la pieza: van entre comillas y acaban en la cabecera del vídeo.
+pub const META: &[&str] = &["title", "artist"];
 /// Modificadores de voz: valen tanto en la declaración de un sonido como en
 /// una línea de patrón, donde afectan solo a esa línea.
 pub const VOICE_MODIFIERS: &[&str] = &["gain", "dist", "pan", "prob"];
@@ -99,6 +101,10 @@ impl Parser {
             let value = self.single_number(line, &head)?;
             return Some(Item::Setting { name: head, value });
         }
+        if META.contains(&head.value.as_str()) {
+            let value = self.single_string(line, &head)?;
+            return Some(Item::Meta { name: head, value });
+        }
         self.pattern(head, &toks[1..]).map(Item::Pattern)
     }
 
@@ -139,6 +145,40 @@ impl Parser {
     fn single_number(&mut self, line: &Line, head: &Spanned<String>) -> P<Spanned<f64>> {
         let toks = &line.tokens;
         let value = self.number(toks.get(1), &toks[0], &format!("`{}`", head.value))?;
+        if let Some(extra) = toks.get(2) {
+            self.error(extra.pos, "sobra texto al final de la línea");
+            return None;
+        }
+        Some(value)
+    }
+
+    /// `nombre "texto"` y nada más.
+    fn single_string(&mut self, line: &Line, head: &Spanned<String>) -> P<Spanned<String>> {
+        let toks = &line.tokens;
+        let value = match toks.get(1) {
+            Some(Token {
+                kind: TokKind::Str(text),
+                pos,
+            }) => Spanned {
+                value: text.clone(),
+                pos: *pos,
+            },
+            Some(t) => {
+                self.error_help(
+                    t.pos,
+                    format!("`{}` necesita un texto entre comillas", head.value),
+                    format!("por ejemplo: {} \"Mi track\"", head.value),
+                );
+                return None;
+            }
+            None => {
+                self.error(
+                    toks[0].pos.after(),
+                    format!("falta el texto de `{}`", head.value),
+                );
+                return None;
+            }
+        };
         if let Some(extra) = toks.get(2) {
             self.error(extra.pos, "sobra texto al final de la línea");
             return None;

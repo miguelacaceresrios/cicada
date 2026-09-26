@@ -16,6 +16,11 @@ pub enum Item {
         name: Spanned<String>,
         value: Spanned<f64>,
     },
+    /// `title "Nombre"`
+    Meta {
+        name: Spanned<String>,
+        value: Spanned<String>,
+    },
     /// `bass = synth saw gain 0.8`
     Sound(SoundDecl),
     /// `drop 16:` seguido de líneas indentadas

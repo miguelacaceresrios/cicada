@@ -1,6 +1,9 @@
 # Estructura completa: intro, build, drop, break y drop final.
 # Las secciones y su energía viajan en la IR: las visuales las usan para
 # cambiar de escena.
+title "Hakken Ritual"
+artist "Isometrical"
+
 bpm 200
 seed 2026
 

@@ -1,0 +1,52 @@
+name: Release
+
+# Publica un zip con CICADA Studio y la CLI ya compilados, para quien no
+# tenga Rust. Se dispara al etiquetar una versión: `git tag v0.2.0 && git push --tags`.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Compilar
+        run: cargo build --release -p cicada-studio -p cicada-cli
+
+      - name: Preparar el paquete
+        shell: bash
+        run: |
+          mkdir -p dist/CICADA
+          cp target/release/cicada-studio.exe target/release/cicada.exe dist/CICADA/
+          cp crates/cicada-studio/assets/icon.ico dist/CICADA/cicada.ico
+          cp LICENSE readme.md uninstall.ps1 dist/CICADA/
+          cp -r examples dist/CICADA/examples
+          cp install.ps1 dist/CICADA/install.ps1
+          cp install.cmd dist/CICADA/install.cmd
+          cd dist && 7z a -tzip ../cicada-windows-x64.zip CICADA
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: cicada-windows-x64.zip
+          body: |
+            ## CICADA para Windows
+
+            1. Descarga y descomprime `cicada-windows-x64.zip`.
+            2. Doble clic en `install.cmd`.
+
+            Crea el acceso directo **CICADA Studio** en el Escritorio, añade la
+            CLI `cicada` al PATH y copia los ejemplos a `Documentos\CICADA`.
+            No hace falta Rust ni permisos de administrador.
+
+            Para exportar vídeo hace falta FFmpeg; Studio ofrece instalarlo.

@@ -10,6 +10,9 @@ use crate::time::Rational;
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    /// Nombre de la pieza y de quien la firma. Salen en la cabecera del vídeo.
+    pub title: Option<String>,
+    pub artist: Option<String>,
     pub bpm: f64,
     /// Beats por ciclo.
     pub beats: u32,

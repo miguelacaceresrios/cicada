@@ -1,4 +1,7 @@
 # Primera pieza: un loop gabber mínimo, sin secciones.
+title "Primera"
+artist "Isometrical"
+
 bpm 195
 seed 7
 length 16

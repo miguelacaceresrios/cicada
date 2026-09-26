@@ -17,6 +17,8 @@ struct Glyph {
 
 struct Face {
     font: Font,
+    /// Tamaño base, sin encoger.
+    base: f32,
     size: f32,
     cache: HashMap<char, Glyph>,
 }
@@ -27,8 +29,19 @@ impl Face {
             Font::from_bytes(bytes, FontSettings::default()).expect("fuente incluida válida");
         Face {
             font,
+            base: size,
             size,
             cache: HashMap::new(),
+        }
+    }
+
+    /// Reescala la fuente sobre su tamaño base. Vacía la caché, así que solo
+    /// se usa en textos cortos como el título.
+    fn scale(&mut self, factor: f32) {
+        let size = self.base * factor;
+        if size != self.size {
+            self.size = size;
+            self.cache.clear();
         }
     }
 
@@ -112,7 +125,10 @@ pub struct Overlay {
     owner: Vec<Option<usize>>,
     section_lines: Vec<usize>,
     section_names: Vec<String>,
+    /// Lo que se ve en pantalla: el `title` de la pieza si lo lleva, y si no
+    /// el nombre del archivo.
     name: String,
+    artist: Option<String>,
     bpm: f64,
     beats: u32,
     length: i64,
@@ -168,7 +184,8 @@ impl Overlay {
                 .iter()
                 .map(|sec| sec.name.to_uppercase())
                 .collect(),
-            name: name.to_string(),
+            name: program.title.clone().unwrap_or_else(|| name.to_string()),
+            artist: program.artist.clone(),
             bpm: program.bpm,
             beats: program.beats,
             length: program.length(),
@@ -365,11 +382,24 @@ impl Overlay {
         }
         let a = fade * fade * (3.0 - 2.0 * fade);
         let (w, h) = (self.width as f32, self.height as f32);
-        let title = "CICADA";
-        let tw = self.title.width(title);
         canvas.rect(0.0, 0.0, w, h, INK, 0.35 * a);
-        canvas.text(&mut self.title, title, (w - tw) / 2.0, h * 0.5, TEXT, a);
-        let sub = self.name.to_uppercase();
+
+        // El nombre de la pieza en grande, y debajo quien la firma. Un título
+        // largo se encoge para que quepa entre los márgenes.
+        let title = self.name.to_uppercase();
+        let natural = self.title.width(&title);
+        let room = w * 0.84;
+        let squeeze = (room / natural).min(1.0);
+        self.title.scale(squeeze);
+        let tw = self.title.width(&title);
+        canvas.text(&mut self.title, &title, (w - tw) / 2.0, h * 0.5, TEXT, a);
+        self.title.scale(1.0);
+
+        let sub = self
+            .artist
+            .clone()
+            .unwrap_or_else(|| "CICADA".into())
+            .to_uppercase();
         let sw = self.hud_bold.width(&sub);
         canvas.text(
             &mut self.hud_bold,
